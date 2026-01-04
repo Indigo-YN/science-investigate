@@ -298,27 +298,40 @@
             align-items: flex-end; padding: 0 40px; box-sizing: border-box; z-index: 50;
             transition: opacity 0.3s ease;
         }
-        .ctrl-group { pointer-events: auto; position: relative; }
-        .d-pad { display: grid; grid-template-columns: 80px 80px 80px; grid-template-rows: 80px 80px; gap: 10px; }
-        .ctrl-btn {
-            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 15px; color: rgba(255, 255, 255, 0.6); font-size: 32px;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer; user-select: none; touch-action: manipulation;
+        
+        /* [수정됨] 조이스틱 스타일 추가 */
+        #joystick-zone {
+            width: 140px; height: 140px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+            pointer-events: auto;
+            margin-bottom: 10px;
         }
-        .ctrl-btn:active, .ctrl-btn.pressed { background: rgba(255, 255, 255, 0.3); transform: scale(0.95); }
-        #btn-up { grid-column: 2; grid-row: 1; }
-        #btn-left { grid-column: 1; grid-row: 2; }
-        #btn-down { grid-column: 2; grid-row: 2; }
-        #btn-right { grid-column: 3; grid-row: 2; }
+        #joystick-knob {
+            width: 60px; height: 60px;
+            background: rgba(233, 69, 96, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%); /* 초기 위치 중앙 */
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            pointer-events: none; /* Knob itself doesn't capture events */
+        }
+
+        .ctrl-group { pointer-events: auto; position: relative; }
         
         .action-btn {
             width: 100px; height: 100px; border-radius: 50%;
             background: rgba(233, 69, 96, 0.2); border: 4px solid rgba(233, 69, 96, 0.5);
             color: #e94560; font-family: var(--font-pixel); font-size: 18px;
-            margin-bottom: 20px; margin-right: 10px;
+            margin-bottom: 30px; margin-right: 20px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
         }
-        .action-btn:active { background: rgba(233, 69, 96, 0.4); }
+        .action-btn:active { background: rgba(233, 69, 96, 0.4); transform: scale(0.95); }
 
         #end-title {
             font-family: var(--font-pixel); font-size: 80px; color: var(--accent-color);
@@ -354,14 +367,16 @@
     <div id="transition-overlay"></div>
 
     <div id="mobile-controls" class="hidden">
-        <div class="ctrl-group d-pad">
-            <div id="btn-up" class="ctrl-btn">▲</div>
-            <div id="btn-left" class="ctrl-btn">◀</div>
-            <div id="btn-down" class="ctrl-btn">▼</div>
-            <div id="btn-right" class="ctrl-btn">▶</div>
-        </div>
+        <!-- [수정됨] 조이스틱 영역 -->
         <div class="ctrl-group">
-            <div id="btn-action" class="ctrl-btn action-btn">SPACE</div>
+            <div id="joystick-zone">
+                <div id="joystick-knob"></div>
+            </div>
+        </div>
+        
+        <!-- 액션 버튼 -->
+        <div class="ctrl-group">
+            <div id="btn-action" class="action-btn">SPACE</div>
         </div>
     </div>
 
@@ -1456,14 +1471,22 @@
         }
 
         ctx.save();
-        const mapW = currentMap[0].length * TILE_SIZE; 
-        const mapH = currentMap.length * TILE_SIZE;
-        const offsetX = (SCREEN_W - mapW) / 2; 
-        const offsetY = (SCREEN_H - mapH) / 2;
+        
+        // --- [수정됨] 카메라 로직 변경: 플레이어를 화면 중앙에 고정 ---
+        // 플레이어의 현재 맵 상 중심 좌표
+        const playerCenterX = player.px + TILE_SIZE / 2;
+        const playerCenterY = player.py + TILE_SIZE / 2;
+
+        // 카메라 오프셋 계산 (화면 중앙 - 플레이어 위치)
+        // 이렇게 하면 플레이어가 항상 화면의 (400, 300) 위치에 오게 됨
+        const offsetX = (SCREEN_W / 2) - playerCenterX;
+        const offsetY = (SCREEN_H / 2) - playerCenterY;
+
         ctx.translate(offsetX, offsetY);
         
-        const pCenterX = player.px + TILE_SIZE/2 + offsetX; 
-        const pCenterY = player.py + TILE_SIZE/2 + offsetY; 
+        // HUD 및 컨트롤 투명도 로직용 (플레이어는 항상 중앙에 있음)
+        const pCenterX = SCREEN_W / 2; 
+        const pCenterY = SCREEN_H / 2;
         
         const hud = document.getElementById('hud');
         const topControls = document.getElementById('top-controls');
@@ -1483,15 +1506,14 @@
             topControls.style.pointerEvents = 'auto';
 
             // Existing Collision Logic (Top UI)
+            // 플레이어가 중앙에 고정되어 있으므로 UI와 겹칠 일이 거의 없지만 로직은 유지
             let hudOpacity = 1.0;
-            // 상단 왼쪽 HUD 영역 충돌 체크
             if (pCenterX >= 20 && pCenterX <= 350 && pCenterY >= 20 && pCenterY <= 80) {
                 hudOpacity = 0.3;
             }
             hud.style.opacity = hudOpacity;
 
             let controlsOpacity = 1.0;
-            // 상단 오른쪽 버튼 영역 충돌 체크
             if (pCenterX >= (SCREEN_W - 350) && pCenterX <= (SCREEN_W - 20) && pCenterY >= 20 && pCenterY <= 80) {
                 controlsOpacity = 0.3;
             }
@@ -1502,7 +1524,7 @@
                 // 부모 컨테이너는 항상 선명하게 유지하고 자식 요소들을 개별 제어합니다.
                 mobileControls.style.opacity = 1.0; 
 
-                const dPad = mobileControls.querySelector('.d-pad');
+                const dPad = mobileControls.querySelector('.ctrl-group'); // first ctrl group is joystick
                 const actionBtn = document.getElementById('btn-action'); // 액션 버튼
 
                 // 1. 방향키 (왼쪽 하단 영역) 반투명 처리
@@ -1555,20 +1577,30 @@
 
         ctx.restore();
 
+        // --- [수정됨] Light Layer 동기화 ---
+        // 1. 전체 화면을 어둡게 채우기 위해 캔버스를 초기화하고 fillRect
+        lightCtx.setTransform(1, 0, 0, 1, 0, 0); // 변환 초기화
         lightCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
-        let darkOpacity = 0.85; 
-        if (gameState.stage === 4) darkOpacity = 0.98; // [수정됨] 5단계 제외
 
-        // [수정됨] 5단계(Stage 5)는 어두운 조명 효과 제외
+        let darkOpacity = 0.85; 
+        if (gameState.stage === 4) darkOpacity = 0.98; // 5단계 제외
+        
+        // 5단계(Stage 5)는 어두운 조명 효과 제외
         if (gameState.stage !== 3 && gameState.stage !== 5) {
             lightCtx.fillStyle = `rgba(10, 10, 30, ${darkOpacity})`; 
             lightCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-            lightCtx.globalCompositeOperation = 'destination-out';
-            const breath = Math.sin(gameState.frameCount * 0.05) * 5;
-            const lCenterX = player.px + TILE_SIZE/2 + offsetX;
-            const lCenterY = player.py + TILE_SIZE/2 + offsetY;
             
-            // [수정됨] 5단계 제외하고 4단계만 손전등(cone) 효과 적용
+            // 2. 구멍을 뚫기 위해 카메라 오프셋 적용
+            lightCtx.translate(offsetX, offsetY);
+            lightCtx.globalCompositeOperation = 'destination-out';
+            
+            const breath = Math.sin(gameState.frameCount * 0.05) * 5;
+            
+            // 플레이어 중심 좌표 (이제 맵 좌표계 기준)
+            const lCenterX = player.px + TILE_SIZE/2; 
+            const lCenterY = player.py + TILE_SIZE/2;
+            
+            // 5단계 제외하고 4단계만 손전등(cone) 효과 적용
             if (gameState.stage === 4) {
                 let ambientGrd = lightCtx.createRadialGradient(lCenterX, lCenterY, 5, lCenterX, lCenterY, 140);
                 ambientGrd.addColorStop(0, "rgba(0,0,0,1)"); ambientGrd.addColorStop(1, "rgba(0,0,0,0)");
@@ -1599,7 +1631,8 @@
                             let pObj = gameState.activePuzzles.find(p => p.x === x && p.y === y);
                             if (pObj && (pObj.solved || pObj.failed)) continue; 
                         }
-                        const lx = x * TILE_SIZE + TILE_SIZE/2 + offsetX; const ly = y * TILE_SIZE + TILE_SIZE/2 + offsetY;
+                        const lx = x * TILE_SIZE + TILE_SIZE/2; 
+                        const ly = y * TILE_SIZE + TILE_SIZE/2;
                         let radius = (tile === 'X' ? 50 : 80);
                         const lGrd = lightCtx.createRadialGradient(lx, ly, 5, lx, ly, radius);
                         lGrd.addColorStop(0, "rgba(0,0,0,0.8)"); lGrd.addColorStop(1, "rgba(0,0,0,0)");
@@ -1626,22 +1659,116 @@
 
     // --- Init & Loop ---
     function setupMobileControls() {
-        const btnMap = { 'btn-up': 'ArrowUp', 'btn-down': 'ArrowDown', 'btn-left': 'ArrowLeft', 'btn-right': 'ArrowRight' };
-        for (const [id, code] of Object.entries(btnMap)) {
-            const btn = document.getElementById(id); if (!btn) continue;
-            const startHandler = (e) => { e.preventDefault(); keys[code] = true; btn.classList.add('pressed'); };
-            const endHandler = (e) => { e.preventDefault(); keys[code] = false; btn.classList.remove('pressed'); };
-            btn.addEventListener('mousedown', startHandler); btn.addEventListener('touchstart', startHandler, {passive: false});
-            btn.addEventListener('mouseup', endHandler); btn.addEventListener('mouseleave', endHandler); btn.addEventListener('touchend', endHandler, {passive: false});
+        const zone = document.getElementById('joystick-zone');
+        const knob = document.getElementById('joystick-knob');
+        
+        let touchId = null; 
+        let isMouseDragging = false; // [추가됨] 마우스 드래그 상태 플래그
+        let centerX, centerY;
+        let radius = 70; // Half of zone width
+
+        // Helper to reset joystick
+        const resetJoystick = () => {
+            touchId = null;
+            isMouseDragging = false; // [추가됨] 마우스 상태 초기화
+            knob.style.transform = `translate(-50%, -50%)`;
+            keys['ArrowUp'] = keys['ArrowDown'] = keys['ArrowLeft'] = keys['ArrowRight'] = false;
+        };
+
+        // --- Touch Events (Mobile) ---
+        zone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (touchId !== null) return;
+            
+            const touch = e.changedTouches[0];
+            touchId = touch.identifier;
+            
+            const rect = zone.getBoundingClientRect();
+            centerX = rect.left + rect.width / 2;
+            centerY = rect.top + rect.height / 2;
+            
+            updateJoystick(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        zone.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (touchId === null) return;
+
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchId) {
+                    updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        const endHandler = (e) => {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchId) {
+                    resetJoystick();
+                    break;
+                }
+            }
+        };
+        zone.addEventListener('touchend', endHandler);
+        zone.addEventListener('touchcancel', endHandler);
+
+        // --- [추가됨] Mouse Events (PC/Testing) ---
+        zone.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isMouseDragging = true;
+            
+            const rect = zone.getBoundingClientRect();
+            centerX = rect.left + rect.width / 2;
+            centerY = rect.top + rect.height / 2;
+            
+            updateJoystick(e.clientX, e.clientY);
+        });
+
+        // 마우스가 조이스틱 영역을 벗어나도 드래그가 유지되도록 window에 이벤트 부착
+        window.addEventListener('mousemove', (e) => {
+            if (!isMouseDragging) return;
+            e.preventDefault();
+            updateJoystick(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (!isMouseDragging) return;
+            e.preventDefault();
+            resetJoystick();
+        });
+
+        function updateJoystick(x, y) {
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            const angle = Math.atan2(dy, dx);
+            
+            const limitedDist = Math.min(distance, 40); 
+            const knobX = Math.cos(angle) * limitedDist;
+            const knobY = Math.sin(angle) * limitedDist;
+            
+            // transform 구문 호환성 개선
+            knob.style.transform = `translate(-50%, -50%) translate(${knobX}px, ${knobY}px)`;
+
+            keys['ArrowUp'] = keys['ArrowDown'] = keys['ArrowLeft'] = keys['ArrowRight'] = false;
+
+            if (distance > 10) {
+                const deg = angle * (180 / Math.PI);
+                if (deg > -45 && deg <= 45) keys['ArrowRight'] = true;
+                else if (deg > 45 && deg <= 135) keys['ArrowDown'] = true;
+                else if (deg > 135 || deg <= -135) keys['ArrowLeft'] = true;
+                else keys['ArrowUp'] = true;
+            }
         }
+
         const actionBtn = document.getElementById('btn-action');
         if (actionBtn) {
             const actionHandler = (e) => {
                 e.preventDefault(); actionBtn.classList.add('pressed');
                 if (gameState.state === 'DIALOG') advanceDialog(); 
                 else if (gameState.state === 'PLAY') interact(); 
-                // [수정됨] 모바일 버튼에서는 LINEUP 처리 로직 제거 (직접 터치 방식 사용)
-                // else if (gameState.state === 'LINEUP') selectSuspect(); 
                 setTimeout(() => actionBtn.classList.remove('pressed'), 100);
             };
             actionBtn.addEventListener('mousedown', actionHandler); actionBtn.addEventListener('touchstart', actionHandler, {passive: false});
