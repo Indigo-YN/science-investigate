@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Escape: 반드시 연쇄 도난사건</title>
+    <style>
+        /* [수정됨] Press Start 2P는 구글 폰트에서, DungGeunMo는 눈누(cdn)에서 로드 */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        @font-face {
+            font-family: 'DungGeunMo';
+            src: url('https://fastly.jsdelivr.net/gh/projectnoonnu/noonfonts_six@1.2/DungGeunMo.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root {
+            --bg-color: #1a1a2e;
+            --ui-bg: #16213e;
+            --ui-border: #0f3460;
+            --text-color: #e94560;
+            --accent-color: #e94560; /* Crime Scene Red */
+            /* [수정됨] 폰트 이름을 정확히 명시 */
+            --font-pixel: 'Press Start 2P', 'DungGeunMo', cursive;
+            --font-main: 'DungGeunMo', monospace; 
+        }
+
+        body {
+            background-color: #000;
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            font-family: var(--font-main);
+            overflow: hidden;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-color: #000;
+            image-rendering: pixelated;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(233, 69, 96, 0.2);
+            transform-origin: center center;
+            flex-shrink: 0;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            width: 100%;
+            height: 100%;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            z-index: 20; 
+        }
+
+        /* 시작 화면의 배경을 투명하게 변경하여 캔버스가 보이도록 설정 */
+        #start-screen {
+            background-color: transparent !important;
+        }
+        
+        /* 기존 텍스트 타이틀 숨김 (캔버스에 그릴 것이므로) */
+        #start-screen h1 {
+            display: none;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 {
+            font-family: var(--font-pixel);
+            font-size: 45px;
+            color: var(--accent-color);
+            text-shadow: 4px 4px #533483;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        /* [수정됨] 모든 버튼과 입력창에도 폰트 강제 적용 */
+        button, input, .btn, .mode-btn, .pause-btn, .hint-btn, .choice-btn, .hud-btn {
+            position: relative; 
+            overflow: hidden;   
+            font-family: var(--font-main); 
+        }
+
+        .btn {
+            background: #16213e;
+            color: var(--accent-color);
+            border: 4px solid var(--accent-color);
+            padding: 20px 40px;
+            font-size: 24px;
+            cursor: pointer;
+            margin: 15px;
+            transition: all 0.1s;
+        }
+        .btn:hover { background: var(--accent-color); color: #16213e; transform: scale(1.05); }
+
+        span.ripple {
+            position: absolute;
+            border-radius: 50%;
+            transform: scale(0);
+            animation: ripple 600ms linear;
+            background-color: rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+        }
+        @keyframes ripple { to { transform: scale(4); opacity: 0; } }
+
+        .play-btn {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            font-size: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            padding-left: 10px; 
+        }
+
+        .input-group { margin-bottom: 20px; text-align: center; }
+        input[type="text"] {
+            background: #000; border: none; border-bottom: 4px solid var(--accent-color);
+            color: #fff; font-family: var(--font-main); font-size: 32px;
+            text-align: center; padding: 10px; outline: none; width: 300px;
+        }
+
+        #hud {
+            position: absolute; top: 20px; left: 20px; 
+            display: flex; justify-content: flex-start; gap: 20px;
+            align-items: center; pointer-events: none; 
+            font-size: 32px; text-shadow: 2px 2px #000; 
+            z-index: 15; color: var(--accent-color);
+            transition: opacity 0.3s ease;
+        }
+
+        /* z-index를 100으로 유지하되, 오버레이들이 이보다 높은 값을 가지도록 아래에서 수정함 */
+        #top-controls {
+            position: absolute; top: 20px; right: 20px; z-index: 100;
+            display: flex; flex-direction: row; gap: 15px; align-items: center;
+            transition: opacity 0.3s ease;
+        }
+
+        .mode-btn, .pause-btn, .hint-btn {
+            background: rgba(0, 0, 0, 0.8); border: 2px solid #555;
+            color: #aaa; padding: 10px 15px;
+            font-family: var(--font-main);
+            font-size: 16px;
+            cursor: pointer; transition: all 0.2s;
+            text-align: center; border-radius: 12px; pointer-events: auto; 
+            position: relative; overflow: hidden;
+        }
+        
+        .hint-btn { background: #16213e; border-color: var(--accent-color); color: #fff; }
+
+        .mode-btn.active {
+            border-color: var(--accent-color); color: #fff;
+            background: rgba(233, 69, 96, 0.5); box-shadow: 0 0 10px var(--accent-color);
+        }
+        .mode-btn:hover, .pause-btn:hover, .hint-btn:hover {
+            border-color: #fff; color: #fff; transform: scale(1.05);
+        }
+
+        .dialog-box {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 90%; height: 160px; background: rgba(0, 0, 0, 0.9); border: 4px solid var(--accent-color);
+            padding: 20px; box-sizing: border-box; 
+            font-size: 20px; line-height: 1.5; display: none; z-index: 30; white-space: pre-wrap; color: #fff;
+            text-align: center; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .next-indicator { position: absolute; bottom: 15px; right: 20px; animation: blink 1s infinite; color: var(--accent-color); }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* 팝업 오버레이의 z-index 상향 (35 -> 150)
+           top-controls(100)보다 높게 설정하여 버튼 클릭 차단 및 화면 덮기 */
+        #modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none;
+            justify-content: center; align-items: center; 
+            z-index: 150; 
+        }
+        
+        /* 팝업 박스 스타일 유지 */
+        .modal-box {
+            background: #1a1a2e; border: 4px solid var(--accent-color); 
+            padding: 15px; /* [수정됨] 패딩 축소 (25px -> 15px) */
+            width: 520px; height: 500px;
+            overflow: hidden; 
+            text-align: center; box-shadow: 0 0 20px var(--accent-color);
+            position: relative; transition: all 0.2s;
+            display: flex; flex-direction: column; justify-content: flex-start;
+        }
+        
+        /* 타이틀 위치 조정 */
+        #modal-title { 
+            margin-top: 10px; /* [수정됨] 상단 여백 축소 (20px -> 10px) */
+            margin-bottom: 10px; /* [수정됨] 하단 여백 축소 (20px -> 10px) */
+            font-size: 30px; 
+            color: var(--accent-color); 
+            flex-shrink: 0; 
+        }
+
+        /* 텍스트 설명 위치 및 크기 조정 */
+        /* font-size: 20px로 축소 (두 줄 수용 가능) */
+        /* align-items: center로 변경하여 한 줄일 때는 수직 중앙 정렬 */
+        #modal-content { 
+            margin-top: 0; 
+            margin-bottom: 15px; line-height: 1.5; 
+            font-size: 20px; /* 폰트 크기 축소 */
+            flex-grow: 1; 
+            display: flex; 
+            align-items: center; /* 수직 중앙 정렬 (내용이 적을 때 중앙) */
+            justify-content: center; 
+            text-align: center;
+            overflow: hidden; 
+            white-space: pre-wrap; /* 줄바꿈 허용 */
+            padding: 0 10px; /* 좌우 여백 */
+        }
+
+        .choice-btn {
+            display: block; width: 100%; margin: 8px 0; background: #000;
+            border: 2px solid #555; color: #fff; 
+            padding: 15px; cursor: pointer; text-align: left; font-size: 20px;
+            transition: 0.2s; position: relative; overflow: hidden;
+            flex-shrink: 0;
+        }
+        .choice-btn:hover { border-color: var(--accent-color); color: var(--accent-color); padding-left: 25px; }
+
+        #quiz-timer-container { width: 100%; height: 8px; background: #333; margin-bottom: 0px; display: none; flex-shrink: 0; }
+        #quiz-timer-bar { width: 100%; height: 100%; background: #00ff9d; transition: width 0.1s linear; }
+
+        /* 단서 오버레이 z-index 상향 (40 -> 160) */
+        #clue-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); display: none;
+            justify-content: center; align-items: center; 
+            z-index: 160;
+        }
+        .clue-box {
+            background: #1a1a2e; border: 4px solid #fff; padding: 40px;
+            width: 700px; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+            text-align: left; 
+        }
+        .clue-item {
+            margin-bottom: 10px; font-size: 16px; color: #e94560;
+            border-bottom: 1px solid #444; padding-bottom: 8px;
+        }
+
+        /* 일시정지 오버레이 z-index 상향 (45 -> 170) */
+        #pause-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: none;
+            justify-content: center; align-items: center; 
+            z-index: 170;
+            flex-direction: column;
+        }
+        #pause-overlay h2 { font-size: 50px; color: #fff; margin-bottom: 40px; font-family: var(--font-pixel); }
+
+        /* [추가됨] 검거 확인 팝업 오버레이 */
+        #arrest-confirm-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); display: none;
+            justify-content: center; align-items: center; 
+            z-index: 180; /* 다른 오버레이보다 높게 */
+        }
+
+        #transition-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000; z-index: 200; pointer-events: none; opacity: 0;
+        }
+
+        #mobile-controls {
+            position: absolute; bottom: 30px; left: 0; width: 100%; height: 200px;
+            pointer-events: none; display: flex; justify-content: space-between;
+            align-items: flex-end; padding: 0 40px; box-sizing: border-box; z-index: 50;
+            transition: opacity 0.3s ease;
+        }
+        .ctrl-group { pointer-events: auto; position: relative; }
+        .d-pad { display: grid; grid-template-columns: 80px 80px 80px; grid-template-rows: 80px 80px; gap: 10px; }
+        .ctrl-btn {
+            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px; color: rgba(255, 255, 255, 0.6); font-size: 32px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; user-select: none; touch-action: manipulation;
+        }
+        .ctrl-btn:active, .ctrl-btn.pressed { background: rgba(255, 255, 255, 0.3); transform: scale(0.95); }
+        #btn-up { grid-column: 2; grid-row: 1; }
+        #btn-left { grid-column: 1; grid-row: 2; }
+        #btn-down { grid-column: 2; grid-row: 2; }
+        #btn-right { grid-column: 3; grid-row: 2; }
+        
+        .action-btn {
+            width: 100px; height: 100px; border-radius: 50%;
+            background: rgba(233, 69, 96, 0.2); border: 4px solid rgba(233, 69, 96, 0.5);
+            color: #e94560; font-family: var(--font-pixel); font-size: 18px;
+            margin-bottom: 20px; margin-right: 10px;
+        }
+        .action-btn:active { background: rgba(233, 69, 96, 0.4); }
+
+        #end-title {
+            font-family: var(--font-pixel); font-size: 80px; color: var(--accent-color);
+            text-shadow: 6px 6px #533483; margin-bottom: 30px;
+            letter-spacing: -2px; text-align: center; line-height: 1.2;
+        }
+        #end-msg {
+            padding: 0 50px; text-align: center; line-height: 1.6;
+            font-size: 30px; color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <div id="top-controls">
+        <div id="mode-selector" class="hidden" style="display: flex; gap: 10px;">
+            <button class="mode-btn active" onclick="setMode('PC')">PC 모드</button>
+            <button class="mode-btn" onclick="setMode('MOBILE')">모바일 모드</button>
+        </div>
+        <button id="chatbot-btn" class="hint-btn hidden" onclick="useHint()">단서 힌트 [5]</button>
+        <button id="pause-btn" class="pause-btn hidden" onclick="togglePause()">일시 정지</button>
+    </div>
+
+    <div id="pause-overlay">
+        <h2>PAUSED</h2>
+        <button class="btn" onclick="togglePause()">계속하기</button>
+        <button class="btn" onclick="location.reload()" style="margin-top: 10px;">타이틀로</button>
+    </div>
+    
+    <div id="transition-overlay"></div>
+
+    <div id="mobile-controls" class="hidden">
+        <div class="ctrl-group d-pad">
+            <div id="btn-up" class="ctrl-btn">▲</div>
+            <div id="btn-left" class="ctrl-btn">◀</div>
+            <div id="btn-down" class="ctrl-btn">▼</div>
+            <div id="btn-right" class="ctrl-btn">▶</div>
+        </div>
+        <div class="ctrl-group">
+            <div id="btn-action" class="ctrl-btn action-btn">SPACE</div>
+        </div>
+    </div>
+
+    <div id="start-screen" class="screen">
+        <!-- h1 태그는 CSS로 숨겨집니다 -->
+        <h1 style="font-size: 55px; line-height: 1.3;">SCIENCE<br>INVESTIGATE</h1>
+        <!-- 텍스트 대신 캔버스 그래픽으로 타이틀이 표시됩니다. -->
+        <div style="height: 150px;"></div> <!-- 타이틀 공간 확보용 여백 -->
+        <!-- 타이틀 부제 변경 -->
+        <p style="color: #aaa; margin-bottom: 30px; font-size: 26px;">- 과학수사대: 전기와 자기 -</p>
+        <button class="btn play-btn" onclick="createRipple(event); goToNameInput()">▶</button>
+    </div>
+
+    <div id="name-input-screen" class="screen hidden">
+        <h2 style="margin-bottom: 40px; font-size: 30px; color: var(--accent-color);">신원 확인</h2>
+        <div class="input-group">
+            <input type="text" id="player-name" placeholder="탐정 이름" maxlength="6" autocomplete="off">
+        </div>
+        <button class="btn" onclick="createRipple(event); startGame();">수사 시작</button>
+        <button class="btn" onclick="backToTitle()" style="font-size: 24px; padding: 15px 30px; margin-top: 10px; border: 2px solid #555; background: #000; color: #aaa;">뒤로</button>
+    </div>
+
+    <div id="hud" class="hidden">
+        <div id="stage-info">금품점 도난사건</div>
+    </div>
+
+    <div id="dialog-box" class="dialog-box" onclick="advanceDialog()">
+        <span id="dialog-text"></span>
+        <div class="next-indicator">▼</div>
+    </div>
+
+    <div id="modal-overlay">
+        <div class="modal-box">
+            <div id="quiz-timer-container">
+                <div id="quiz-timer-bar"></div>
+            </div>
+            <div id="suspect-closeup-container" style="display:none; margin-bottom: 20px; justify-content: center;"></div>
+            
+            <h3 id="modal-title">금고</h3>
+            <div id="modal-content">내용</div>
+            <div id="modal-choices"></div>
+            <!-- 닫기 버튼 스타일 조정 -->
+            <button id="modal-close" class="btn hidden" onclick="closeModal()" style="margin-top:auto; margin-bottom: 10px; font-size: 18px; padding: 10px 20px; flex-shrink: 0;">닫기</button>
+        </div>
+    </div>
+
+    <!-- 검거 확인 팝업 -->
+    <div id="arrest-confirm-overlay">
+        <div class="modal-box" style="height: auto; min-height: 300px;">
+            <h3 style="margin-bottom: 10px; font-size: 28px; color: var(--accent-color);">이 사람이 확실합니까?</h3>
+            <div id="suspect-preview" style="margin: 20px auto; width: 120px; height: 180px;">
+                <canvas id="previewCanvas" width="120" height="180"></canvas>
+            </div>
+            <div style="display: flex; gap: 20px; justify-content: center; margin-top: 20px;">
+                <button class="btn" onclick="confirmArrest()">검거</button>
+                <button class="btn" onclick="cancelArrest()" style="background:#333; border-color:#555; color:#aaa;">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="clue-overlay">
+        <div class="clue-box">
+            <h3 style="margin-bottom:30px; font-size:24px; color: #fff; text-align: center;">수사 일지 (단서)</h3>
+            <div id="clue-list-content"></div>
+            <button class="btn" onclick="closeClueOverlay()" style="margin-top:20px; width: 100%;">닫기</button>
+        </div>
+    </div>
+    
+    <div id="end-screen" class="screen hidden">
+        <h1 id="end-title">CASE CLOSED</h1>
+        <p id="end-msg"></p>
+        <button class="btn" onclick="location.reload()" style="margin-top:40px;">처음으로</button>
+    </div>
+</div>
+
+<script>
+    /* =========================================
+       1. Global Variables & Utilities
+       ========================================= */
+    const keys = {}; // Global Keys Object
+
+    const TRAITS = {
+        shirt: ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FFFFFF', '#000000'],
+        shirtNames: ['빨강', '초록', '파랑', '노랑', '흰색', '검정'],
+        pants: ['#333333', '#8B4513', '#000080'],
+        pantsNames: ['검정색', '갈색', '남색'],
+        hair: ['#000000', '#8B4513', '#FFFF00', '#CCCCCC'],
+        hairNames: ['검은색', '갈색', '금발', '회색'],
+        acc: ['none', 'mask', 'glasses'],
+        accNames: ['액세서리 없음', '마스크', '안경'],
+        shoes: ['#000000', '#FFFFFF', '#8B4513', '#555555'],
+        shoesNames: ['검정색', '흰색', '갈색', '회색']
+    };
+
+    const PALETTE = {
+        bg: '#1a1a2e',
+        wall_dark: '#16213e', wall_light: '#0f3460',
+        floor: '#000000', 
+        skin: '#ffcc99',
+        lamp_glow: '#e94560'
+    };
+
+    const STAGE_CONFIG = {
+        1: { name: "금품점 도난사건", req: 4 },
+        2: { name: "은행 도난사건", req: 4 },
+        3: { name: "백화점 도난사건", req: 4 },
+        4: { name: "박물관 도난사건", req: 4 },
+        5: { name: "시청 도난사건", req: 4 },
+        6: { name: "범인 검거", req: 0 }
+    };
+
+    // 중2 과학 '전기와 자기' 단원 문제 은행 (미래엔 교과서 기반 수정)
+    // [수정됨] 대전열 정보 추가
+    const QUESTION_BANK = {
+        1: [ // 마찰 전기와 정전기 유도
+            { q: "서로 다른 두 물체를 마찰시킬 때 전자가 이동하여 생기는 전기는?", correct: "마찰 전기", wrongs: ["전류", "전압", "저항"] },
+            { q: "마찰 전기가 발생할 때 물체 사이에서 이동하는 입자는?", correct: "전자", wrongs: ["원자핵", "양성자", "중성자"] },
+            { q: "전자를 잃은 물체는 어떤 전하를 띠는가?", correct: "(+)전하", wrongs: ["(-)전하", "중성", "알 수 없다"] },
+            { q: "같은 종류의 전하(+, +)끼리 작용하는 힘은?", correct: "척력(미는 힘)", wrongs: ["인력(당기는 힘)", "중력", "마찰력"] },
+            { q: "대전체를 도체에 가까이 할 때 전하가 분리되는 현상은?", correct: "정전기 유도", wrongs: ["전자기 유도", "마찰 전기", "방전"] },
+            { q: "검전기를 이용하여 알 수 없는 것은?", correct: "원자핵의 개수", wrongs: ["물체의 대전 여부", "전하의 양(비교)", "전하의 종류"] },
+            { q: "(-)대전체를 금속판에 가까이 가져가면 금속박은?", correct: "벌어진다 ((-)전하로 대전)", wrongs: ["오므라든다", "변화 없다", "끊어진다"] },
+            { q: "털가죽과 플라스틱 막대를 문지르면 털가죽은?\n(대전열: (+) 털가죽 > 유리 > 명주 > 나무 > 고무 > 플라스틱 (-))", correct: "전자를 잃어 (+)대전", wrongs: ["전자를 얻어 (-)대전", "변화 없음", "원자핵 이동"] },
+            { q: "전기력이 작용하는 공간을 무엇이라 하는가?", correct: "전기장", wrongs: ["자기장", "중력장", "마찰면"] },
+            { q: "번개와 같이 전하가 공기 중으로 이동하는 현상은?", correct: "방전", wrongs: ["충전", "접지", "유도"] }
+        ],
+        2: [ // 전류, 전압, 저항 (기본)
+            { q: "전하의 흐름을 무엇이라 하는가?", correct: "전류", wrongs: ["전압", "저항", "전력"] },
+            { q: "전류의 세기 단위는?", correct: "암페어(A)", wrongs: ["볼트(V)", "옴(Ω)", "와트(W)"] },
+            { q: "전류를 흐르게 하는 능력을 무엇이라 하는가?", correct: "전압", wrongs: ["전류", "저항", "전하"] },
+            { q: "전압의 단위는?", correct: "볼트(V)", wrongs: ["암페어(A)", "옴(Ω)", "줄(J)"] },
+            { q: "전류의 흐름을 방해하는 정도는?", correct: "저항", wrongs: ["전압", "전력", "전하량"] },
+            { q: "회로에서 전류계는 어떻게 연결해야 하는가?", correct: "직렬 연결", wrongs: ["병렬 연결", "아무렇게나", "전지에 직접 연결"] },
+            { q: "회로에서 전압계는 어떻게 연결해야 하는가?", correct: "병렬 연결", wrongs: ["직렬 연결", "전구 대신 연결", "연결 안 함"] },
+            { q: "물의 흐름 모형에서 '펌프'에 해당하는 회로 요소는?", correct: "전지", wrongs: ["전선", "전구", "스위치"] },
+            { q: "물의 흐름 모형에서 '물레방아'에 해당하는 것은?", correct: "전구(저항)", wrongs: ["전지", "스위치", "전류"] },
+            { q: "전류의 방향은?", correct: "(+)극에서 (-)극", wrongs: ["(-)극에서 (+)극", "S극에서 N극", "알 수 없다"] }
+        ],
+        3: [ // 옴의 법칙과 저항의 연결
+            { q: "전류(I), 전압(V), 저항(R)의 관계식(옴의 법칙)은?", correct: "V = I × R", wrongs: ["V = I / R", "R = V × I", "I = V × R"] },
+            { q: "저항이 일정할 때 전압이 2배가 되면 전류는?", correct: "2배가 된다", wrongs: ["1/2배가 된다", "4배가 된다", "변함없다"] },
+            { q: "길이가 길어지면 도선의 저항은?", correct: "커진다", wrongs: ["작아진다", "변함없다", "0이 된다"] },
+            { q: "단면적이 넓어지면 도선의 저항은?", correct: "작아진다", wrongs: ["커진다", "변함없다", "무한대가 된다"] },
+            { q: "저항을 직렬로 연결할수록 전체 저항은?", correct: "커진다", wrongs: ["작아진다", "변함없다", "0이 된다"] },
+            { q: "저항을 병렬로 연결할수록 전체 저항은?", correct: "작아진다", wrongs: ["커진다", "변함없다", "무한대가 된다"] },
+            { q: "가정용 전기 기구들은 주로 어떻게 연결되어 있는가?", correct: "병렬 연결", wrongs: ["직렬 연결", "복합 연결", "단독 연결"] },
+            { q: "멀티탭에 여러 기기를 연결하면 전체 전류는?", correct: "증가한다(위험)", wrongs: ["감소한다", "일정하다", "0이 된다"] },
+            { q: "저항의 직렬 연결에서 각 저항에 흐르는 전류는?", correct: "모두 같다", wrongs: ["다르다", "저항에 비례", "전압에 비례"] },
+            { q: "저항의 병렬 연결에서 각 저항에 걸리는 전압은?", correct: "모두 같다", wrongs: ["다르다", "전류에 비례", "저항에 반비례"] }
+        ],
+        4: [ // 전류와 자기장
+            { q: "자석 주위에 자기력이 작용하는 공간은?", correct: "자기장", wrongs: ["전기장", "마찰면", "중력장"] },
+            { q: "자기장의 방향은 나침반 자침의 어느 극이 가리키는 방향인가?", correct: "N극", wrongs: ["S극", "동쪽", "서쪽"] },
+            { q: "직선 도선에 전류가 흐를 때 생기는 자기장 모양은?", correct: "동심원 모양", wrongs: ["직선 모양", "S자 모양", "방사형"] },
+            { q: "오른손 엄지손가락을 전류 방향으로 할 때 나머지 네 손가락은?", correct: "자기장의 방향", wrongs: ["전류의 방향", "힘의 방향", "전압의 방향"] },
+            { q: "코일(솔레노이드) 내부에 생기는 자기장의 모양은?", correct: "직선 모양(균일)", wrongs: ["동심원 모양", "불규칙함", "없음"] },
+            { q: "코일에 철심을 넣으면 자기장의 세기는?", correct: "더 세진다(전자석)", wrongs: ["약해진다", "사라진다", "변함없다"] },
+            { q: "전자석의 특징이 아닌 것은?", correct: "항상 자석이다(영구자석)", wrongs: ["전류가 흐를 때만 자석", "극을 바꿀 수 있다", "세기를 조절 가능"] },
+            { q: "자기력선의 특징으로 옳은 것은?", correct: "도중에 끊어지거나 교차하지 않는다", wrongs: ["S극에서 나와 N극으로 간다", "중간에 끊긴다", "서로 교차한다"] },
+            { q: "전류의 세기가 셀수록 자기장의 세기는?", correct: "세진다", wrongs: ["약해진다", "변함없다", "0이 된다"] },
+            { q: "도선에서 멀어질수록 자기장의 세기는?", correct: "약해진다", wrongs: ["세진다", "변함없다", "일정하다"] }
+        ],
+        5: [ // 자기장 속의 전류가 받는 힘 (전동기)
+            { q: "자기장 속에서 전류가 흐르는 도선이 받는 힘을 이용한 장치는?", correct: "전동기(모터)", wrongs: ["발전기", "전지", "검전기"] },
+            { q: "자기장 속 전류가 받는 힘의 방향을 찾을 때 오른손바닥은?", correct: "힘의 방향", wrongs: ["전류 방향", "자기장 방향", "전압 방향"] },
+            { q: "오른손의 네 손가락을 자기장, 엄지를 전류 방향으로 하면 힘은?", correct: "손바닥이 향하는 방향", wrongs: ["손등 방향", "엄지 방향", "손목 방향"] },
+            { q: "전동기의 회전 속도를 높이는 방법이 아닌 것은?", correct: "전류의 방향을 반대로 한다", wrongs: ["전류를 세게 한다", "자석을 센 것으로 바꾼다", "코일 감은 수를 늘린다"] },
+            { q: "전류의 방향이 반대가 되면 도선이 받는 힘의 방향은?", correct: "반대가 된다", wrongs: ["변함없다", "사라진다", "수직이 된다"] },
+            { q: "자기장의 방향이 반대가 되면 도선이 받는 힘의 방향은?", correct: "반대가 된다", wrongs: ["변함없다", "사라진다", "위쪽이 된다"] },
+            { q: "전류와 자기장의 방향이 평행하면 도선이 받는 힘은?", correct: "없다(0)", wrongs: ["최대가 된다", "절반이 된다", "알 수 없다"] },
+            { q: "스피커는 어떤 원리를 이용하는가?", correct: "자기장 속 전류가 받는 힘", wrongs: ["정전기 유도", "마찰 전기", "옴의 법칙"] },
+            { q: "전압계와 전류계의 바늘이 움직이는 원리는?", correct: "자기장 속 전류가 받는 힘", wrongs: ["전자기 유도", "정전기 유도", "화학 반응"] },
+            { q: "자기장 속에서 전류가 받는 힘의 크기를 크게 하려면?", correct: "전류를 세게 흐르게 한다", wrongs: ["전류를 약하게 한다", "자석을 약한 것으로 쓴다", "도선을 얇게 한다"] }
+        ]
+    };
+
+    let gameState = {
+        state: 'START', stage: 1, playerName: '', 
+        inputMode: 'PC', isPaused: false,
+        hintsLeft: 5, 
+        frameCount: 0, dialogQueue: [], dialogCallback: null,
+        activePuzzles: [], lightningIntensity: 0,
+        culprit: {}, 
+        cluesFound: [],
+        suspects: [],
+        transition: { active: false, alpha: 0, mode: 'IN', callback: null },
+        loopStarted: false,
+        cursorIdx: 0,
+        pendingSuspectIdx: -1 
+    };
+
+    let currentMap = [];
+    let player = {
+        x: 2, y: 2, px: 80, py: 80, targetX: 2, targetY: 2, dir: 0, isMoving: false
+    };
+
+    let quizTimer = null;
+    let quizTimeLeft = 10;
+
+    // --- Assets & Engine ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const lightCanvas = document.createElement('canvas');
+    lightCanvas.width = 800; lightCanvas.height = 600;
+    const lightCtx = lightCanvas.getContext('2d');
+    
+    const TILE_SIZE = 40; 
+    const MOVE_SPEED = 2; // Reduced speed
+    const SCREEN_W = 800;
+    const SCREEN_H = 600;
+
+    function resize() {
+        const container = document.getElementById('game-container');
+        const aspect = SCREEN_W / SCREEN_H; 
+        const windowAspect = window.innerWidth / window.innerHeight;
+        let scale;
+        if (windowAspect < aspect) scale = window.innerWidth / SCREEN_W;
+        else scale = window.innerHeight / SCREEN_H;
+        scale *= 0.95;
+        container.style.transform = `scale(${scale})`;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    /* =========================================
+       2. Utilities
+       ========================================= */
+    function shuffle(array) {
+        let currentIndex = array.length, randomIndex;
+        while (currentIndex != 0) {
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+            [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        }
+        return array;
+    }
+    function getRandomItem(array) { return array[Math.floor(Math.random() * array.length)]; }
+
+    /* =========================================
+       3. UI Helper Functions
+       ========================================= */
+    function createRipple(event) {
+        const button = event.currentTarget || event.target.closest('button'); 
+        if (!button) return;
+        const circle = document.createElement("span");
+        const diameter = Math.max(button.clientWidth, button.clientHeight);
+        const radius = diameter / 2;
+        const rect = button.getBoundingClientRect();
+        let x = event.clientX ? event.clientX - rect.left : rect.width / 2;
+        let y = event.clientY ? event.clientY - rect.top : rect.height / 2;
+        circle.style.width = circle.style.height = `${diameter}px`;
+        circle.style.left = `${x - radius}px`;
+        circle.style.top = `${y - radius}px`;
+        circle.classList.add("ripple");
+        const ripple = button.getElementsByClassName("ripple")[0];
+        if (ripple) { ripple.remove(); }
+        button.appendChild(circle);
+    }
+
+    function goToNameInput() {
+        triggerTransition(() => {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('name-input-screen').classList.remove('hidden');
+            document.getElementById('mode-selector').classList.remove('hidden');
+        });
+    }
+
+    function backToTitle() {
+        document.getElementById('name-input-screen').classList.add('hidden');
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('mode-selector').classList.add('hidden');
+    }
+
+    function setMobileControls(visible) {
+        const el = document.getElementById('mobile-controls');
+        if (gameState.inputMode === 'MOBILE' && visible && gameState.state !== 'LINEUP') {
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    }
+
+    function setMode(mode) {
+        gameState.inputMode = mode;
+        const btns = document.querySelectorAll('.mode-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        if (mode === 'PC') btns[0].classList.add('active');
+        else btns[1].classList.add('active');
+        setMobileControls(gameState.state === 'PLAY'); 
+    }
+    
+    function togglePause() {
+        if (gameState.state === 'PLAY' || gameState.state === 'LINEUP') {
+            gameState.isPaused = !gameState.isPaused;
+            const overlay = document.getElementById('pause-overlay');
+            const btn = document.getElementById('pause-btn');
+            if (gameState.isPaused) {
+                overlay.style.display = 'flex';
+                btn.innerText = '계속하기';
+                setMobileControls(false); 
+            } else {
+                overlay.style.display = 'none';
+                btn.innerText = '일시 정지';
+                setMobileControls(true); 
+            }
+        } else if (gameState.isPaused) {
+            gameState.isPaused = false;
+            document.getElementById('pause-overlay').style.display = 'none';
+            document.getElementById('pause-btn').innerText = '일시 정지';
+            setMobileControls(true);
+        }
+    }
+
+    function triggerTransition(callback) {
+        const overlay = document.getElementById('transition-overlay');
+        let alpha = 0;
+        const speed = 0.05;
+        function fadeOut() {
+            alpha += speed;
+            overlay.style.opacity = alpha;
+            if (alpha < 1) { requestAnimationFrame(fadeOut); }
+            else { if (callback) callback(); requestAnimationFrame(fadeIn); }
+        }
+        function fadeIn() {
+            alpha -= speed;
+            overlay.style.opacity = alpha;
+            if (alpha > 0) { requestAnimationFrame(fadeIn); }
+            else { overlay.style.opacity = 0; gameState.transition.active = false; }
+        }
+        gameState.transition.active = true;
+        fadeOut();
+    }
+
+    function updateQuizTimerBar() {
+        const bar = document.getElementById('quiz-timer-bar');
+        const pct = Math.max(0, (quizTimeLeft / 10) * 100);
+        bar.style.width = `${pct}%`;
+        if (pct < 30) bar.style.backgroundColor = '#ff0000';
+        else bar.style.backgroundColor = '#00ff9d';
+    }
+
+    function updateHintBtn() { 
+        const btn = document.getElementById('chatbot-btn');
+        if (gameState.state === 'LINEUP') btn.innerText = "수사 일지 (단서 확인)";
+        else btn.innerText = `단서 힌트 [${gameState.hintsLeft}]`;
+    }
+
+    function useHint() {
+        if (gameState.state === 'LINEUP') { showClues(); return; }
+        if(gameState.hintsLeft <= 0) { showMessage("힌트가 바닥났다."); return; }
+        gameState.hintsLeft--; updateHintBtn();
+        const hints = {
+            1: "마찰 전기는 서로 다른 물체 마찰 시 전자 이동.", 
+            2: "전류는 A(암페어), 전압은 V(볼트).",
+            3: "옴의 법칙 V=IR. 직렬은 저항 커짐, 병렬은 작아짐.", 
+            4: "오른손 엄지가 전류면 네 손가락은 자기장.", 
+            5: "자기장 속 전류가 받는 힘 = 전동기 원리."
+        };
+        showMessage(`[본부 연락]: ${hints[gameState.stage] || "..."}`);
+    }
+
+    function showClues() {
+        const overlay = document.getElementById('clue-overlay');
+        const list = document.getElementById('clue-list-content');
+        list.innerHTML = '';
+        if (gameState.cluesFound.length === 0) {
+            list.innerHTML = '<div class="clue-item">확보된 단서가 없습니다.</div>';
+        } else {
+            gameState.cluesFound.forEach(clue => {
+                const div = document.createElement('div');
+                div.className = 'clue-item';
+                div.innerText = clue.replace("[단서 확보]\n", "").replace("[최종 단서]\n", "");
+                list.appendChild(div);
+            });
+        }
+        overlay.style.display = 'flex';
+    }
+
+    function closeClueOverlay() {
+        document.getElementById('clue-overlay').style.display = 'none';
+    }
+
+    function showDialog(lines, callback) {
+        gameState.state = 'DIALOG'; gameState.dialogQueue = lines; gameState.dialogCallback = callback;
+        document.getElementById('dialog-box').style.display = 'flex'; 
+        setMobileControls(false); nextDialogLine();
+    }
+    function nextDialogLine() {
+        if (gameState.dialogQueue.length === 0) {
+            document.getElementById('dialog-box').style.display = 'none';
+            if(gameState.stage === 6) gameState.state = 'LINEUP'; else gameState.state = 'PLAY';
+            if (gameState.dialogCallback) { gameState.dialogCallback(); gameState.dialogCallback = null; }
+            if (gameState.state === 'PLAY' || gameState.state === 'LINEUP') setMobileControls(true);
+            return;
+        }
+        document.getElementById('dialog-text').innerText = gameState.dialogQueue.shift().replace("{player}", gameState.playerName);
+    }
+    function advanceDialog() { if(gameState.state === 'DIALOG') nextDialogLine(); }
+
+    function showMessage(msg) {
+        const modalBox = document.querySelector('.modal-box');
+        document.getElementById('modal-title').innerText = "알림"; 
+        document.getElementById('modal-content').innerText = msg;
+        document.getElementById('modal-choices').innerHTML = ''; 
+        document.getElementById('modal-close').classList.remove('hidden');
+        document.getElementById('modal-overlay').style.display = 'flex'; 
+        setMobileControls(false);
+        if (gameState.state === 'PLAY') gameState.state = 'PUZZLE';
+    }
+
+    function openPuzzle(puzzle) {
+        gameState.state = 'PUZZLE'; setMobileControls(false);
+        const modalBox = document.querySelector('.modal-box');
+        document.getElementById('modal-title').innerText = `금고 해독 (기회: ${puzzle.attempts})`;
+        document.getElementById('modal-content').innerText = puzzle.q;
+        const choicesDiv = document.getElementById('modal-choices'); choicesDiv.innerHTML = '';
+        puzzle.a.forEach((ans, idx) => {
+            const btn = document.createElement('button'); btn.className = 'choice-btn';
+            btn.innerText = `${idx+1}. ${ans}`; 
+            btn.onclick = (e) => { createRipple(e); checkAnswer(puzzle, idx); };
+            choicesDiv.appendChild(btn);
+        });
+        document.getElementById('quiz-timer-container').style.display = 'block';
+        
+        const closeBtn = document.getElementById('modal-close');
+        closeBtn.innerText = "뒤로";
+        closeBtn.classList.remove('hidden');
+
+        quizTimeLeft = 10; updateQuizTimerBar();
+        clearInterval(quizTimer);
+        quizTimer = setInterval(() => {
+            if (!gameState.isPaused) { 
+                quizTimeLeft -= 0.1; updateQuizTimerBar();
+                if (quizTimeLeft <= 0) { clearInterval(quizTimer); checkAnswer(puzzle, -1); }
+            }
+        }, 100);
+        document.getElementById('modal-overlay').style.display = 'flex';
+    }
+
+    function handlePuzzleFailure(puzzle, reason) {
+        closeModal(); 
+        puzzle.failed = true; 
+        puzzle.solved = false;
+        showDialog([
+            reason,
+            "보안 시스템이 작동하여 현장이 폐쇄됩니다.",
+            "이곳에서의 수사를 중단하고 다음 장소로 이동합니다."
+        ], () => { 
+            triggerTransition(() => loadStage(gameState.stage + 1)); 
+        });
+    }
+
+    function checkAnswer(puzzle, idx) {
+        clearInterval(quizTimer);
+        document.getElementById('quiz-timer-container').style.display = 'none';
+        
+        if (idx === -1) {
+            puzzle.attempts--;
+            if (puzzle.attempts <= 0) {
+                handlePuzzleFailure(puzzle, "시간 초과! 보안 경보가 울립니다.");
+            } else { 
+                showMessage(`시간 초과! (남은 기회: ${puzzle.attempts})`); 
+            }
+            return;
+        }
+        
+        if (idx === puzzle.correct) {
+            puzzle.solved = true; 
+            puzzle.failed = false; 
+            showMessage("금고가 열렸다! 문서 조각을 찾았다.");
+        } else { 
+            puzzle.attempts--;
+            if (puzzle.attempts <= 0) {
+                handlePuzzleFailure(puzzle, "비밀번호 입력 횟수 초과!");
+            } else { 
+                showMessage(`비밀번호 오류! (남은 기회: ${puzzle.attempts})`); 
+            }
+        }
+    }
+
+    function closeModal() {
+        clearInterval(quizTimer);
+        document.getElementById('quiz-timer-container').style.display = 'none';
+        document.getElementById('suspect-closeup-container').style.display = 'none';
+        document.getElementById('modal-overlay').style.display = 'none';
+        
+        const modalBox = document.querySelector('.modal-box');
+        
+        if(gameState.state !== 'LINEUP' && gameState.state !== 'START') { gameState.state = 'PLAY'; setMobileControls(true); }
+    }
+
+    /* =========================================
+       4. Game Logic
+       ========================================= */
+    function generateCulprit() {
+        const shirtIdx = Math.floor(Math.random() * TRAITS.shirt.length);
+        const pantsIdx = Math.floor(Math.random() * TRAITS.pants.length);
+        const hairIdx = Math.floor(Math.random() * TRAITS.hair.length);
+        const accIdx = Math.floor(Math.random() * TRAITS.acc.length);
+        const shoesIdx = Math.floor(Math.random() * TRAITS.shoes.length);
+        return { shirt: TRAITS.shirt[shirtIdx], shirtName: TRAITS.shirtNames[shirtIdx], pants: TRAITS.pants[pantsIdx], pantsName: TRAITS.pantsNames[pantsIdx], hair: TRAITS.hair[hairIdx], hairName: TRAITS.hairNames[hairIdx], acc: TRAITS.acc[accIdx], accName: TRAITS.accNames[accIdx], shoes: TRAITS.shoes[shoesIdx], shoesName: TRAITS.shoesNames[shoesIdx] };
+    }
+
+    function generateInnocentSuspect(realCulprit) {
+        let s = generateCulprit();
+        const traitKeys = ['shirt', 'pants', 'hair', 'acc', 'shoes'];
+        const matchCount = Math.floor(Math.random() * 3) + 1; 
+        const shuffledKeys = shuffle([...traitKeys]);
+        const keysToMatch = shuffledKeys.slice(0, matchCount);
+        keysToMatch.forEach(k => { s[k] = realCulprit[k]; s[k+'Name'] = realCulprit[k+'Name']; });
+        let isIdentical = true;
+        for(let k of traitKeys) { if(s[k] !== realCulprit[k]) isIdentical = false; }
+        if(isIdentical) {
+            const diffKey = shuffledKeys[matchCount] || traitKeys[0];
+            do {
+                let temp = generateCulprit();
+                s[diffKey] = temp[diffKey];
+                s[diffKey+'Name'] = temp[diffKey+'Name'];
+            } while(s[diffKey] === realCulprit[diffKey]);
+        }
+        return s;
+    }
+
+    function generatePuzzlesForStage(stageKey, layout) {
+        let locations = [];
+        for(let y=0; y<layout.length; y++) {
+            for(let x=0; x<layout[y].length; x++) {
+                if(layout[y][x] === '3') locations.push({x, y});
+            }
+        }
+        const pool = QUESTION_BANK[stageKey];
+        if(!pool || locations.length === 0) return [];
+        const shuffledQuestions = shuffle([...pool]);
+        const puzzles = [];
+        locations.forEach((loc, i) => {
+            const qData = shuffledQuestions[i % shuffledQuestions.length];
+            let wrongs = shuffle([...qData.wrongs]).slice(0, 3);
+            let choices = shuffle([qData.correct, ...wrongs]);
+            let correctIdx = choices.indexOf(qData.correct);
+            puzzles.push({
+                x: loc.x, y: loc.y, q: qData.q, a: choices, correct: correctIdx,
+                solved: false, failed: false, attempts: 2,
+                item: STAGE_CONFIG[stageKey].key && i === locations.length-1 ? STAGE_CONFIG[stageKey].key : null
+            });
+        });
+        return puzzles;
+    }
+
+    function checkReachability(map, startX, startY) {
+        const w = map[0].length;
+        const h = map.length;
+        let visited = Array.from({ length: h }, () => Array(w).fill(false));
+        let queue = [{x: startX, y: startY}];
+        visited[startY][startX] = true;
+        let reachablePuzzles = 0;
+        let totalPuzzles = 0;
+        for(let y=0; y<h; y++) {
+            for(let x=0; x<w; x++) {
+                if(map[y][x] === '3') totalPuzzles++;
+            }
+        }
+        while(queue.length > 0) {
+            let curr = queue.shift();
+            if (map[curr.y][curr.x] === '3') reachablePuzzles++;
+            const dirs = [{dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0}];
+            for(let d of dirs) {
+                let nx = curr.x + d.dx;
+                let ny = curr.y + d.dy;
+                if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[ny][nx]) {
+                    const tile = map[ny][nx];
+                    if (tile !== '1' && tile !== 'J' && tile !== 'B' && tile !== 'R' && tile !== 'E' && tile !== 'D' && tile !== 'L' && tile !== '2') {
+                        visited[ny][nx] = true;
+                        queue.push({x: nx, y: ny});
+                    }
+                }
+            }
+        }
+        return reachablePuzzles === totalPuzzles;
+    }
+
+    function generateProceduralMap(stageNum) {
+        if(stageNum === 6) return []; 
+        const w = 20, h = 15;
+        let map = [];
+        let validMap = false;
+        let attemptCount = 0;
+        while (!validMap && attemptCount < 100) {
+            attemptCount++;
+            map = []; 
+            for (let y = 0; y < h; y++) {
+                let row = [];
+                for (let x = 0; x < w; x++) {
+                    if (y === 0 || y === h - 1 || x === 0 || x === w - 1) row.push('1'); else row.push('0'); 
+                }
+                map.push(row);
+            }
+            if (stageNum === 5) {
+                for (let y = 1; y < h - 1; y++) { for(let x=1; x<w-1; x++) map[y][x] = '1'; }
+                let stack = []; let startX = 1; let startY = 1; map[startY][startX] = '0';
+                stack.push({x: startX, y: startY});
+                const directions = [{dx: 0, dy: -2}, {dx: 0, dy: 2}, {dx: -2, dy: 0}, {dx: 2, dy: 0}];
+                while (stack.length > 0) {
+                    let current = stack[stack.length - 1]; let validNeighbors = []; let shuffledDirs = shuffle([...directions]);
+                    for (let dir of shuffledDirs) {
+                        let nx = current.x + dir.dx; let ny = current.y + dir.dy;
+                        if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 && map[ny][nx] === '1') {
+                            validNeighbors.push({x: nx, y: ny, dx: dir.dx, dy: dir.dy});
+                        }
+                    }
+                    if (validNeighbors.length > 0) {
+                        let next = validNeighbors[0]; map[next.y][next.x] = '0'; map[current.y + next.dy/2][current.x + next.dx/2] = '0'; stack.push({x: next.x, y: next.y});
+                    } else { stack.pop(); }
+                }
+            } else {
+                let obsChar = 'C'; 
+                if (stageNum === 1) obsChar = 'J'; else if (stageNum === 2) obsChar = 'B'; else if (stageNum === 3) obsChar = 'R'; else if (stageNum === 4) obsChar = 'E';
+                const density = 25; 
+                for (let i = 0; i < density; i++) {
+                    let rx = Math.floor(Math.random() * (w - 2)) + 1; let ry = Math.floor(Math.random() * (h - 2)) + 1;
+                    if(map[ry][rx] === '0') map[ry][rx] = obsChar;
+                }
+            }
+            if (stageNum !== 5) {
+                for (let i = 0; i < 4; i++) {
+                    let rx = Math.floor(Math.random() * (w - 2)) + 1; let ry = Math.floor(Math.random() * (h - 2)) + 1;
+                    if(map[ry][rx] === '0') map[ry][rx] = 'L';
+                }
+            }
+            let doorX = Math.floor(w/2); map[1][doorX] = '2'; if(map[2][doorX] !== '0') map[2][doorX] = '0';
+            if(map[1][doorX-1] !== '1') map[1][doorX-1] = '0'; if(map[1][doorX+1] !== '1') map[1][doorX+1] = '0';
+            let startX = Math.floor(w/2); let startY = h - 2; map[startY][startX] = '4';
+            if(map[startY-1][startX] !== '0') map[startY-1][startX] = '0';
+            if(map[startY][startX-1] !== '1') map[startY][startX-1] = '0'; if(map[startY][startX+1] !== '1') map[startY][startX+1] = '0';
+            if (stageNum !== 5) {
+                 [[0,0],[0,1],[1,0],[-1,0],[0,-1]].forEach(off => {
+                    let dy = 1 + off[1], dx = Math.floor(w/2) + off[0]; if(map[dy] && map[dy][dx] !== '1') map[dy][dx] = '0'; if (dy===1 && dx===Math.floor(w/2)) map[dy][dx] = '2';
+                    let sy = h-2 + off[1], sx = Math.floor(w/2) + off[0]; if(map[sy] && map[sy][sx] !== '1') map[sy][sx] = '0'; if (sy===h-2 && sx===Math.floor(w/2)) map[sy][sx] = '4';
+                });
+            }
+            let puzzlesPlaced = 0; let subAttempts = 0;
+            while(puzzlesPlaced < 4 && subAttempts < 500) {
+                let rx = Math.floor(Math.random() * (w - 4)) + 2; let ry = Math.floor(Math.random() * (h - 4)) + 2;
+                if(map[ry][rx] === '0' && map[ry][rx] !== '4' && map[ry][rx] !== '2' && map[ry][rx] !== 'X' && map[ry][rx] !== 'L') { map[ry][rx] = '3'; puzzlesPlaced++; }
+                subAttempts++;
+            }
+            if (stageNum === 5) validMap = checkReachability(map, startX, startY); else validMap = true;
+        }
+        return map;
+    }
+
+    function loadStage(stageNum) {
+        gameState.stage = stageNum;
+        let currentConfig = STAGE_CONFIG[stageNum];
+        if (!currentConfig) return;
+        document.getElementById('stage-info').innerText = currentConfig.name;
+        gameState.hintsLeft = 5; updateHintBtn();
+
+        if (stageNum === 6) {
+            startLineup();
+            return;
+        }
+
+        let rawMap = generateProceduralMap(stageNum);
+        currentMap = rawMap; 
+        gameState.activePuzzles = generatePuzzlesForStage(stageNum, currentMap);
+        for(let y=0; y<currentMap.length; y++) {
+            for(let x=0; x<currentMap[y].length; x++) {
+                if(currentMap[y][x] === '4') {
+                    player.x = x; player.y = y; player.targetX = x; player.targetY = y;
+                    player.px = x * TILE_SIZE; player.py = y * TILE_SIZE; player.isMoving = false;
+                }
+            }
+        }
+    }
+
+    // --- Interaction ---
+    function startGame() {
+        const nameInput = document.getElementById('player-name');
+        const name = nameInput.value;
+        if (!name) { nameInput.style.borderBottomColor = 'red'; return; }
+        gameState.playerName = name;
+        gameState.culprit = generateCulprit();
+        
+        triggerTransition(() => {
+            document.getElementById('name-input-screen').classList.add('hidden');
+            document.getElementById('mode-selector').classList.add('hidden');
+            
+            if (!gameState.loopStarted) {
+                gameState.loopStarted = true;
+                gameLoop();
+            }
+
+            // [수정됨] 장소명 변경: 성북시 -> 반드시
+            showDialog([
+                `[긴급 의뢰]\n수신인: ${name} 탐정\n반드시 곳곳에서 연쇄 도난사건이 발생했습니다.`,
+                "범인은 현장에 과학적 지식이 필요한 금고를 남기고 사라졌습니다.",
+                "금품점, 은행, 백화점, 박물관, 그리고 시청...",
+                "각 현장에서 문제를 해결하고 범인의 인상착의를 확보해 주십시오.",
+                "마지막에 범인을 검거해야 합니다. 행운을 빕니다."
+            ], () => { 
+                triggerTransition(() => {
+                    loadStage(1); 
+                    document.getElementById('hud').classList.remove('hidden');
+                    document.getElementById('pause-btn').classList.remove('hidden');
+                    document.getElementById('chatbot-btn').classList.remove('hidden');
+                    gameState.state = 'PLAY'; 
+                });
+            });
+        });
+    }
+
+    function checkDoor(x, y) {
+        let required = STAGE_CONFIG[gameState.stage].req;
+        let solvedCount = gameState.activePuzzles.filter(p => p.solved).length;
+        let failedCount = gameState.activePuzzles.filter(p => p.failed).length;
+        let processedCount = solvedCount + failedCount;
+
+        if (processedCount < required) { showMessage(`아직 확인하지 않은 금고가 있습니다.\n(${processedCount}/${required})`); return; }
+
+        let clueMsg = "";
+        let success = (solvedCount === required);
+
+        if (success) {
+            if (gameState.stage === 1) clueMsg = `[단서 확보]\n범인의 상의 색깔은 '${gameState.culprit.shirtName}'입니다.`;
+            else if (gameState.stage === 2) clueMsg = `[단서 확보]\n범인의 하의 색깔은 '${gameState.culprit.pantsName}'입니다.`;
+            else if (gameState.stage === 3) clueMsg = `[단서 확보]\n범인의 머리 색깔은 '${gameState.culprit.hairName}'입니다.`;
+            else if (gameState.stage === 4) clueMsg = `[단서 확보]\n범인은 '${gameState.culprit.accName}' 특징이 있습니다.`;
+            else if (gameState.stage === 5) clueMsg = `[단서 확보]\n범인의 신발 색깔은 '${gameState.culprit.shoesName}'입니다.`;
+            gameState.cluesFound.push(clueMsg);
+
+            const placeNames = {1: "금품점", 2: "은행", 3: "백화점", 4: "박물관", 5: "시청"};
+            const place = placeNames[gameState.stage];
+            showDialog([clueMsg, `${place}에서의 모든 단서를 모았다! 다음 장소로 이동하자.`], () => { 
+                triggerTransition(() => loadStage(gameState.stage + 1)); 
+            });
+        } else {
+            clueMsg = `[단서 확보 실패]\n잠긴 금고가 있어 범인의 단서를 파악하지 못했습니다.\n다음 현장으로 이동합니다.`;
+            showDialog([clueMsg], () => { 
+                triggerTransition(() => loadStage(gameState.stage + 1)); 
+            });
+        }
+    }
+
+    function interact() {
+        let tx = player.x; let ty = player.y;
+        if (player.dir === 0) ty++; if (player.dir === 1) ty--; if (player.dir === 2) tx--; if (player.dir === 3) tx++;
+        const targets = [{x:player.x, y:player.y}, {x:tx, y:ty}];
+        for (let t of targets) {
+            let pObj = gameState.activePuzzles.find(p => p.x === t.x && p.y === t.y);
+            if (pObj && !pObj.solved && !pObj.failed) { openPuzzle(pObj); return; }
+        }
+    }
+
+    function startLineup() {
+        gameState.state = 'LINEUP'; gameState.suspects = []; gameState.cursorIdx = 0; updateHintBtn(); 
+        gameState.suspects.push({...gameState.culprit, isCulprit: true});
+        for(let i=0; i<9; i++) {
+            let s = generateInnocentSuspect(gameState.culprit); s.isCulprit = false; gameState.suspects.push(s);
+        }
+        gameState.suspects = shuffle(gameState.suspects);
+        setMobileControls(false); // [수정됨] 범인 검거 단계 진입 시 모바일 컨트롤 숨김
+        showDialog(["모든 단서를 모았습니다.", "용의자 10명이 확보되었습니다.", "지금까지 모은 단서를 바탕으로 진범을 지목하십시오.", "범인이라 생각되는 사람을 직접 선택(클릭/터치)하여 체포하세요."], () => { });
+    }
+
+    // [수정됨] selectSuspect가 인덱스를 직접 받도록 수정
+    function selectSuspect(index) {
+        let selected = gameState.suspects[index];
+        if (selected.isCulprit) { showEnding(); } else { gameOver("엉뚱한 사람을 체포했다. 진범은 도주했다."); }
+    }
+
+    function gameOver(reason) {
+        gameState.state = 'END'; setMobileControls(false);
+        document.getElementById('end-screen').classList.remove('hidden');
+        document.getElementById('end-title').innerText = "MISSION FAILED";
+        document.getElementById('end-title').style.color = "red";
+        document.getElementById('end-msg').innerText = reason;
+
+        // [수정됨] 결과 화면에서 상단 UI 숨김
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('top-controls').classList.add('hidden');
+    }
+
+    function showEnding() {
+        gameState.state = 'END'; setMobileControls(false);
+        document.getElementById('end-screen').classList.remove('hidden');
+        document.getElementById('end-title').innerText = "ARRESTED";
+        document.getElementById('end-title').style.color = "#00ff9d";
+        
+        // [수정됨] 장소명 변경: 성북시 -> 반드시
+        document.getElementById('end-msg').innerText = `축하합니다, ${gameState.playerName} 탐정님!\n반드시 연쇄 절도범을 검거했습니다.`;
+
+        // [수정됨] 결과 화면에서 상단 UI 숨김
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('top-controls').classList.add('hidden');
+    }
+
+    // --- Input & Physics ---
+    function handleInput() {
+        if (gameState.isPaused || gameState.transition.active) return; 
+
+        // [수정됨] LINEUP 상태의 키보드/가상키 이동 로직 삭제 (클릭/터치만 허용)
+        if (gameState.state === 'LINEUP') {
+            return;
+        }
+
+        if (gameState.state !== 'PLAY' || player.isMoving) return;
+        let dx = 0, dy = 0, dir = -1;
+        if (keys['ArrowUp'] || keys['KeyW']) { dx = 0; dy = -1; dir = 1; }
+        else if (keys['ArrowDown'] || keys['KeyS']) { dx = 0; dy = 1; dir = 0; }
+        else if (keys['ArrowLeft'] || keys['KeyA']) { dx = -1; dy = 0; dir = 2; }
+        else if (keys['ArrowRight'] || keys['KeyD']) { dx = 1; dy = 0; dir = 3; }
+        if (dir !== -1) { player.dir = dir; attemptMove(dx, dy); }
+    }
+
+    function attemptMove(dx, dy) {
+        const nextX = player.x + dx; const nextY = player.y + dy;
+        if (nextY < 0 || nextY >= currentMap.length || nextX < 0 || nextX >= currentMap[0].length) return;
+        const tile = currentMap[nextY][nextX];
+        if (['1', 'J', 'B', 'R', 'E', 'D', 'L'].includes(tile)) return; 
+        if (tile === '2') { checkDoor(nextX, nextY); return; }
+        player.targetX = nextX; player.targetY = nextY; player.isMoving = true;
+    }
+
+    function updatePhysics() {
+        if (gameState.isPaused || gameState.transition.active) return; 
+        if (gameState.state === 'DIALOG') return;
+
+        if (!player.isMoving) return;
+        const tx = player.targetX * TILE_SIZE; const ty = player.targetY * TILE_SIZE;
+        if (player.px < tx) player.px += MOVE_SPEED; if (player.px > tx) player.px -= MOVE_SPEED;
+        if (player.py < ty) player.py += MOVE_SPEED; if (player.py > ty) player.py -= MOVE_SPEED;
+        
+        if (Math.abs(player.px - tx) < MOVE_SPEED && Math.abs(player.py - ty) < MOVE_SPEED) {
+            player.px = tx; player.py = ty; player.x = player.targetX; player.y = player.targetY; player.isMoving = false;
+        }
+    }
+
+    function moveCursor(dir) {
+        gameState.inputLock = true;
+        let nextIdx = gameState.cursorIdx + dir;
+        if (nextIdx < 0) nextIdx += 10;
+        if (nextIdx >= 10) nextIdx -= 10;
+        gameState.cursorIdx = nextIdx;
+        setTimeout(() => gameState.inputLock = false, 150);
+    }
+
+    // --- Lineup Logic Helper ---
+    const LINEUP_SCALE = 3.0; 
+    const LINEUP_COLS = 5;
+    const LINEUP_GAP_X = 140; 
+    const LINEUP_GAP_Y = 200; 
+    // [수정됨] 용의자 배치 Y 좌표 상향 조정 (250 -> 200)
+    const LINEUP_START_Y = 200; 
+
+    function getSuspectCoords(index) {
+        const row = Math.floor(index / LINEUP_COLS);
+        const col = index % LINEUP_COLS;
+        const totalW = (LINEUP_COLS - 1) * LINEUP_GAP_X;
+        const startX = (SCREEN_W - totalW) / 2 - 35; 
+        return {
+            x: startX + col * LINEUP_GAP_X,
+            y: LINEUP_START_Y + row * LINEUP_GAP_Y,
+            w: 40 * LINEUP_SCALE, 
+            h: 60 * LINEUP_SCALE  
+        };
+    }
+
+    /* =========================================
+       5. Rendering
+       ========================================= */
+    function drawCharacter(ctx, cx, cy, type, dir, animFrame, traits) {
+        const s = TILE_SIZE; 
+        const p = s / 8; 
+        const bob = (animFrame % 20 > 10) ? -2 : 0;
+        
+        cx += 4; cy += 4 + bob; 
+
+        if (type === 'player') {
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(cx + p, cy + p, p*6, p*6); 
+            ctx.fillStyle = '#8B4513'; ctx.fillRect(cx, cy + p, p*8, p); ctx.fillRect(cx + p*2, cy, p*4, p*1.5); 
+            ctx.fillStyle = 'black';
+            let eyeOffsetX = 0; if (dir === 2) eyeOffsetX = -p; if (dir === 3) eyeOffsetX = p;  
+            ctx.fillRect(cx + p*2.5 + eyeOffsetX, cy + p*3.5, p, p); ctx.fillRect(cx + p*4.5 + eyeOffsetX, cy + p*3.5, p, p);
+        } else {
+            if (!traits) traits = { shirt: '#555', pants: '#333', hair: '#000', acc: 'none', shoes: '#000' };
+            ctx.fillStyle = traits.pants; ctx.fillRect(cx + p*2, cy + p*6, p*1.5, p*1.5); ctx.fillRect(cx + p*4.5, cy + p*6, p*1.5, p*1.5);
+            ctx.fillStyle = traits.shoes; ctx.fillRect(cx + p*2, cy + p*7.5, p*1.5, p*0.5); ctx.fillRect(cx + p*4.5, cy + p*7.5, p*1.5, p*0.5);
+            ctx.fillStyle = traits.shirt; ctx.fillRect(cx + p*2, cy + p*3.5, p*4, p*2.5);
+            ctx.fillStyle = '#ffcc99'; ctx.fillRect(cx + p*2, cy + p, p*4, p*2.5); 
+            ctx.fillStyle = traits.hair; ctx.fillRect(cx + p*1.5, cy + p*0.5, p*5, p*1); ctx.fillRect(cx + p*1.5, cy + p*1.5, p*0.5, p*2); ctx.fillRect(cx + p*6, cy + p*1.5, p*0.5, p*2);
+            ctx.fillStyle = 'black'; ctx.fillRect(cx + p*2.5, cy + p*2, p*0.6, p*0.6); ctx.fillRect(cx + p*4.5, cy + p*2, p*0.6, p*0.6); 
+            if (traits.acc === 'mask') { ctx.fillStyle = '#fff'; ctx.fillRect(cx + p*2, cy + p*3, p*4, p*1); } 
+            else if (traits.acc === 'glasses') { ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.strokeRect(cx + p*2, cy + p*1.8, p*1.5, p); ctx.strokeRect(cx + p*4.5, cy + p*1.8, p*1.5, p); ctx.beginPath(); ctx.moveTo(cx+p*3.5, cy+p*2.3); ctx.lineTo(cx+p*4.5, cy+p*2.3); ctx.stroke(); }
+        }
+    }
+
+    function drawTile(ctx, x, y, type) {
+        const px = x * TILE_SIZE; const py = y * TILE_SIZE;
+        if (gameState.stage === 1) ctx.fillStyle = '#2c2c2c'; 
+        else if (gameState.stage === 2) ctx.fillStyle = '#37474f'; 
+        else if (gameState.stage === 3) ctx.fillStyle = '#424242'; 
+        else if (gameState.stage === 4) ctx.fillStyle = '#1a0505'; 
+        else if (gameState.stage === 5) ctx.fillStyle = '#0f2027'; 
+        else ctx.fillStyle = '#000'; 
+        
+        if (type !== '1') {
+            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            if ((x+y)%2 === 0) { ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); }
+        }
+
+        if (type === '1') { ctx.fillStyle = PALETTE.wall_dark; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); ctx.fillStyle = PALETTE.wall_light; ctx.fillRect(px, py + TILE_SIZE-4, TILE_SIZE, 2); } 
+        else if (type === 'L') { ctx.fillStyle = '#333'; ctx.fillRect(px+15, py+5, 10, 35); ctx.fillStyle = PALETTE.lamp_glow; ctx.beginPath(); ctx.arc(px+20, py+10, 6, 0, Math.PI*2); ctx.fill(); } 
+        else if (type === 'X') { ctx.fillStyle = '#222'; ctx.fillRect(px+5, py+15, 30, 20); ctx.strokeStyle = '#555'; ctx.lineWidth = 2; ctx.strokeRect(px+5, py+5, 30, 10); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(px+5, py+5, 30, 10); } 
+        else if (['J', 'B', 'R', 'E', 'D'].includes(type)) { 
+            if(type === 'J') { ctx.fillStyle = '#444'; ctx.fillRect(px+2, py+10, 36, 20); ctx.strokeStyle = '#88c'; ctx.lineWidth = 2; ctx.strokeRect(px+2, py+2, 36, 15); } 
+            else if(type === 'B') { ctx.fillStyle = '#555'; ctx.fillRect(px+5, py+5, 30, 30); ctx.fillStyle = '#111'; ctx.fillRect(px+10, py+10, 20, 20); ctx.fillStyle = '#444'; ctx.fillRect(px+28, py+10, 5, 20); } 
+            else if(type === 'R') { ctx.fillStyle = '#d7ccc8'; ctx.fillRect(px+5, py+15, 30, 15); ctx.fillStyle = '#333'; ctx.fillRect(px+10, py+5, 10, 10); ctx.fillStyle = '#111'; ctx.fillRect(px+15, py+20, 15, 8); } 
+            else if(type === 'E') { ctx.fillStyle = '#b71c1c'; ctx.fillRect(px+10, py+15, 20, 20); ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(px+10, py+5, 20, 10); } 
+            else if(type === 'D') { ctx.fillStyle = '#5d4037'; ctx.fillRect(px+2, py+10, 36, 25); ctx.fillStyle = '#220d05'; ctx.fillRect(px+20, py+15, 14, 15); }
+        } else if (type === '2') { ctx.shadowBlur = 10; ctx.shadowColor = '#00ff9d'; ctx.fillStyle = '#000'; ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE); ctx.fillStyle = '#00ff9d'; ctx.fillRect(px + 10, py + 5, TILE_SIZE-20, TILE_SIZE-5); ctx.shadowBlur = 0; }
+    }
+
+    function drawItem(ctx, x, y, pObj) {
+        const px = x * TILE_SIZE; const py = y * TILE_SIZE;
+        if (pObj && pObj.solved) { ctx.fillStyle = '#333'; ctx.fillRect(px + 5, py + 10, 30, 20); ctx.fillStyle = '#000'; ctx.fillRect(px + 7, py + 12, 26, 16); } 
+        else if (pObj && pObj.failed) { ctx.fillStyle = '#222'; ctx.fillRect(px + 5, py + 10, 30, 20); ctx.fillStyle = '#500'; ctx.beginPath(); ctx.arc(px + 20, py + 20, 4, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#ff0000'; ctx.fillRect(px + 28, py + 12, 4, 4); }
+        else { const glow = Math.abs(Math.sin(gameState.frameCount * 0.1)) * 3; ctx.fillStyle = '#3498db'; ctx.fillRect(px + 5, py + 10 - glow, 30, 20); ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(px + 20, py + 20 - glow, 4, 0, Math.PI*2); ctx.fill(); }
+    }
+
+    // 타이틀 화면 그리기 함수 (도트 그래픽 스타일)
+    function drawStartScreen() {
+        // 1. 배경 (진한 남색 + 움직이는 그리드)
+        ctx.fillStyle = '#050510'; 
+        ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+        
+        ctx.strokeStyle = 'rgba(0, 255, 157, 0.1)';
+        ctx.lineWidth = 2;
+        const offset = (gameState.frameCount * 0.5) % 40;
+        
+        // 수직선
+        for (let x = 0; x < SCREEN_W; x += 40) {
+            ctx.beginPath(); ctx.moveTo(x + offset - 40, 0); ctx.lineTo(x + offset - 40, SCREEN_H); ctx.stroke();
+        }
+        // 수평선 (원근감 효과 흉내)
+        for (let y = 0; y < SCREEN_H; y += 40) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(SCREEN_W, y); ctx.stroke();
+        }
+
+        // 2. 타이틀 텍스트 (도트 그래픽 효과)
+        ctx.save();
+        // 타이틀 위치 상향 조정 ( -80 -> -130 )
+        ctx.translate(SCREEN_W/2, SCREEN_H/2 - 130); 
+        
+        // 숨쉬는 효과 (Scale Pulse)
+        const scale = 1.0 + Math.sin(gameState.frameCount * 0.05) * 0.03;
+        ctx.scale(scale, scale);
+        
+        ctx.font = '60px "Press Start 2P"'; // 픽셀 폰트 사용
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // 그림자 (입체감)
+        ctx.fillStyle = '#3e206d'; // 진한 보라색 그림자
+        ctx.fillText("SCIENCE", 6, -40 + 6);
+        ctx.fillText("INVESTIGATE", 6, 40 + 6);
+        
+        // 메인 텍스트 (그라데이션 효과 흉내 - 캔버스 클리핑 대신 단색 사용 후 덧칠)
+        // SCIENCE (Cyan Blue)
+        ctx.fillStyle = '#00a8ff';
+        ctx.fillText("SCIENCE", 0, -40);
+        
+        // INVESTIGATE (Hot Pink)
+        ctx.fillStyle = '#e94560';
+        ctx.fillText("INVESTIGATE", 0, 40);
+        
+        // 3. 장식 픽셀 (반짝임)
+        if (gameState.frameCount % 60 < 30) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(180, -60, 5, 5); // 반짝이 1
+            ctx.fillRect(-190, 20, 8, 8); // 반짝이 2
+        }
+
+        ctx.restore();
+    }
+
+    function draw() {
+        // START 상태에서도 그리기 허용
+        // if(gameState.state === 'START' || gameState.state === 'END') return;
+        if(gameState.state === 'END') return; // END 화면은 HTML 오버레이 사용
+
+        // START 상태일 때 타이틀 화면 그리기
+        if (gameState.state === 'START') {
+            drawStartScreen();
+            return;
+        }
+        
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+        if (gameState.state === 'LINEUP') {
+            ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0,0,SCREEN_W, SCREEN_H);
+            ctx.fillStyle = '#fff'; ctx.font = '32px "DungGeunMo"'; ctx.textAlign = 'center';
+            ctx.fillText("범인으로 의심되는 용의자를 선택하세요.", SCREEN_W/2, 120);
+            
+            gameState.suspects.forEach((sus, i) => {
+                const pos = getSuspectCoords(i);
+                
+                // [수정됨] 커서 하이라이트 삭제 (클릭/터치 방식으로 변경되어 필요 없음)
+                /*
+                if (i === gameState.cursorIdx) {
+                    const centerX = pos.x + (20 * LINEUP_SCALE); 
+                    const centerY = pos.y + (20 * LINEUP_SCALE);
+                    
+                    const grd = ctx.createRadialGradient(centerX, centerY, 10, centerX, centerY, 70);
+                    grd.addColorStop(0, 'rgba(255, 255, 200, 0.6)'); 
+                    grd.addColorStop(0.5, 'rgba(255, 255, 200, 0.2)');
+                    grd.addColorStop(1, 'rgba(255, 255, 200, 0)');   
+                    
+                    ctx.fillStyle = grd;
+                    ctx.beginPath(); ctx.arc(centerX, centerY, 70, 0, Math.PI*2); ctx.fill();
+                }
+                */
+
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.scale(LINEUP_SCALE, LINEUP_SCALE);
+                // [수정됨] 범인 지목 시 움직임을 느리게 하기 위해 frameCount를 2로 나눔
+                drawCharacter(ctx, 0, 0, 'suspect', 0, Math.floor(gameState.frameCount / 2), sus);
+                ctx.restore();
+            });
+            return;
+        }
+
+        if (!currentMap || currentMap.length === 0) {
+             return;
+        }
+
+        ctx.save();
+        const mapW = currentMap[0].length * TILE_SIZE; 
+        const mapH = currentMap.length * TILE_SIZE;
+        const offsetX = (SCREEN_W - mapW) / 2; 
+        const offsetY = (SCREEN_H - mapH) / 2;
+        ctx.translate(offsetX, offsetY);
+        
+        const pCenterX = player.px + TILE_SIZE/2 + offsetX; 
+        const pCenterY = player.py + TILE_SIZE/2 + offsetY; 
+        
+        const hud = document.getElementById('hud');
+        const topControls = document.getElementById('top-controls');
+        const mobileControls = document.getElementById('mobile-controls');
+
+        // Logic to dim UI when Puzzle is open
+        if (gameState.state === 'PUZZLE' || gameState.state === 'CLIMAX' || document.getElementById('modal-overlay').style.display === 'flex') {
+            hud.style.opacity = 0.1;
+            hud.style.pointerEvents = 'none';
+            topControls.style.opacity = 0.1;
+            topControls.style.pointerEvents = 'none';
+            mobileControls.style.opacity = 0.0; 
+        } else {
+            // Restore pointer events
+            hud.style.pointerEvents = 'none'; // HUD container
+            document.getElementById('chatbot-btn').style.pointerEvents = 'auto'; // Child button
+            topControls.style.pointerEvents = 'auto';
+
+            // Existing Collision Logic (Top UI)
+            let hudOpacity = 1.0;
+            // 상단 왼쪽 HUD 영역 충돌 체크
+            if (pCenterX >= 20 && pCenterX <= 350 && pCenterY >= 20 && pCenterY <= 80) {
+                hudOpacity = 0.3;
+            }
+            hud.style.opacity = hudOpacity;
+
+            let controlsOpacity = 1.0;
+            // 상단 오른쪽 버튼 영역 충돌 체크
+            if (pCenterX >= (SCREEN_W - 350) && pCenterX <= (SCREEN_W - 20) && pCenterY >= 20 && pCenterY <= 80) {
+                controlsOpacity = 0.3;
+            }
+            topControls.style.opacity = controlsOpacity;
+            
+            // [수정됨] 모바일 컨트롤 반투명 로직 분리 (방향키 vs 액션키 개별 적용)
+            if (!mobileControls.classList.contains('hidden')) {
+                // 부모 컨테이너는 항상 선명하게 유지하고 자식 요소들을 개별 제어합니다.
+                mobileControls.style.opacity = 1.0; 
+
+                const dPad = mobileControls.querySelector('.d-pad');
+                const actionBtn = document.getElementById('btn-action'); // 액션 버튼
+
+                // 1. 방향키 (왼쪽 하단 영역) 반투명 처리
+                let dPadOpacity = 1.0;
+                if (pCenterY > SCREEN_H - 220 && pCenterX < 350) { 
+                    dPadOpacity = 0.3;
+                }
+                if (dPad) dPad.style.opacity = dPadOpacity;
+
+                // 2. 액션키 (오른쪽 하단 영역) 반투명 처리
+                let actionOpacity = 1.0;
+                if (pCenterY > SCREEN_H - 220 && pCenterX > SCREEN_W - 350) { 
+                    actionOpacity = 0.3;
+                }
+                if (actionBtn) actionBtn.style.opacity = actionOpacity;
+            }
+        }
+
+        for(let y=0; y<currentMap.length; y++) {
+            for(let x=0; x<currentMap[y].length; x++) {
+                const tile = currentMap[y][x];
+                drawTile(ctx, x, y, tile);
+                if (tile === '3') {
+                    let pObj = gameState.activePuzzles.find(p => p.x === x && p.y === y);
+                    drawItem(ctx, x, y, pObj);
+                }
+            }
+        }
+        drawCharacter(ctx, player.px, player.py, 'player', player.dir, player.isMoving ? gameState.frameCount : 0);
+        
+        let interactionTarget = null;
+        let itx = player.x; let ity = player.y;
+        if (player.dir === 0) ity++; else if (player.dir === 1) ity--;
+        else if (player.dir === 2) itx--; else if (player.dir === 3) itx++;
+        
+        const checkLocs = [{x:player.x, y:player.y}, {x:itx, y:ity}];
+        for(let loc of checkLocs) {
+             let p = gameState.activePuzzles.find(mz => mz.x === loc.x && mz.y === loc.y && !mz.solved && !mz.failed);
+             if(p) { interactionTarget = p; break; }
+        }
+
+        if (interactionTarget) {
+             if (Math.floor(gameState.frameCount / 30) % 2 === 0) {
+                 ctx.fillStyle = '#ffffff';
+                 ctx.font = '10px "Press Start 2P"'; 
+                 ctx.textAlign = 'center';
+                 ctx.fillText("SPACE", player.px + 20, player.py - 10);
+             }
+        }
+
+        ctx.restore();
+
+        lightCtx.clearRect(0, 0, SCREEN_W, SCREEN_H);
+        let darkOpacity = 0.85; 
+        if (gameState.stage === 4) darkOpacity = 0.98; // [수정됨] 5단계 제외
+
+        // [수정됨] 5단계(Stage 5)는 어두운 조명 효과 제외
+        if (gameState.stage !== 3 && gameState.stage !== 5) {
+            lightCtx.fillStyle = `rgba(10, 10, 30, ${darkOpacity})`; 
+            lightCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+            lightCtx.globalCompositeOperation = 'destination-out';
+            const breath = Math.sin(gameState.frameCount * 0.05) * 5;
+            const lCenterX = player.px + TILE_SIZE/2 + offsetX;
+            const lCenterY = player.py + TILE_SIZE/2 + offsetY;
+            
+            // [수정됨] 5단계 제외하고 4단계만 손전등(cone) 효과 적용
+            if (gameState.stage === 4) {
+                let ambientGrd = lightCtx.createRadialGradient(lCenterX, lCenterY, 5, lCenterX, lCenterY, 140);
+                ambientGrd.addColorStop(0, "rgba(0,0,0,1)"); ambientGrd.addColorStop(1, "rgba(0,0,0,0)");
+                lightCtx.fillStyle = ambientGrd; lightCtx.beginPath(); lightCtx.arc(lCenterX, lCenterY, 140, 0, Math.PI*2); lightCtx.fill();
+
+                lightCtx.save();
+                lightCtx.translate(lCenterX, lCenterY);
+                let angle = 0; 
+                if (player.dir === 0) angle = Math.PI / 2; else if (player.dir === 1) angle = -Math.PI / 2;
+                else if (player.dir === 2) angle = Math.PI; else if (player.dir === 3) angle = 0; 
+                lightCtx.rotate(angle);
+                let coneGrd = lightCtx.createRadialGradient(0, 0, 10, 0, 0, 350);
+                coneGrd.addColorStop(0, "rgba(0,0,0,1)"); coneGrd.addColorStop(1, "rgba(0,0,0,0)");
+                lightCtx.fillStyle = coneGrd;
+                lightCtx.beginPath(); lightCtx.moveTo(0, 0); lightCtx.arc(0, 0, 350, -Math.PI/6, Math.PI/6); 
+                lightCtx.closePath(); lightCtx.fill(); lightCtx.restore();
+            } else {
+                const grd = lightCtx.createRadialGradient(lCenterX, lCenterY, 20, lCenterX, lCenterY, 140 + breath);
+                grd.addColorStop(0, "rgba(0,0,0,1)"); grd.addColorStop(1, "rgba(0,0,0,0)");
+                lightCtx.fillStyle = grd; lightCtx.beginPath(); lightCtx.arc(lCenterX, lCenterY, 140+breath, 0, Math.PI*2); lightCtx.fill();
+            }
+
+            for(let y=0; y<currentMap.length; y++) {
+                for(let x=0; x<currentMap[y].length; x++) {
+                    const tile = currentMap[y][x];
+                    if (tile === 'L' || tile === '2' || tile === '3' || tile === 'X') { 
+                        if (tile === '3') {
+                            let pObj = gameState.activePuzzles.find(p => p.x === x && p.y === y);
+                            if (pObj && (pObj.solved || pObj.failed)) continue; 
+                        }
+                        const lx = x * TILE_SIZE + TILE_SIZE/2 + offsetX; const ly = y * TILE_SIZE + TILE_SIZE/2 + offsetY;
+                        let radius = (tile === 'X' ? 50 : 80);
+                        const lGrd = lightCtx.createRadialGradient(lx, ly, 5, lx, ly, radius);
+                        lGrd.addColorStop(0, "rgba(0,0,0,0.8)"); lGrd.addColorStop(1, "rgba(0,0,0,0)");
+                        lightCtx.fillStyle = lGrd; lightCtx.beginPath(); lightCtx.arc(lx, ly, radius, 0, Math.PI*2); lightCtx.fill();
+                    }
+                }
+            }
+        } 
+
+        lightCtx.globalCompositeOperation = 'source-over'; 
+        ctx.drawImage(lightCanvas, 0, 0);
+
+        if (gameState.stage === 2) {
+            const pulse = (Math.sin(gameState.frameCount * 0.05) + 1) / 2; // [Slower Pulse]
+            const maxR = 200;
+            const corners = [{x:0, y:0}, {x:SCREEN_W, y:0}, {x:0, y:SCREEN_H}, {x:SCREEN_W, y:SCREEN_H}];
+            corners.forEach(c => {
+                let grd = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, maxR);
+                grd.addColorStop(0, `rgba(255, 0, 0, ${0.5 * pulse})`); grd.addColorStop(1, "rgba(255, 0, 0, 0)");
+                ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(c.x, c.y, maxR, 0, Math.PI*2); ctx.fill();
+            });
+        }
+    }
+
+    // --- Init & Loop ---
+    function setupMobileControls() {
+        const btnMap = { 'btn-up': 'ArrowUp', 'btn-down': 'ArrowDown', 'btn-left': 'ArrowLeft', 'btn-right': 'ArrowRight' };
+        for (const [id, code] of Object.entries(btnMap)) {
+            const btn = document.getElementById(id); if (!btn) continue;
+            const startHandler = (e) => { e.preventDefault(); keys[code] = true; btn.classList.add('pressed'); };
+            const endHandler = (e) => { e.preventDefault(); keys[code] = false; btn.classList.remove('pressed'); };
+            btn.addEventListener('mousedown', startHandler); btn.addEventListener('touchstart', startHandler, {passive: false});
+            btn.addEventListener('mouseup', endHandler); btn.addEventListener('mouseleave', endHandler); btn.addEventListener('touchend', endHandler, {passive: false});
+        }
+        const actionBtn = document.getElementById('btn-action');
+        if (actionBtn) {
+            const actionHandler = (e) => {
+                e.preventDefault(); actionBtn.classList.add('pressed');
+                if (gameState.state === 'DIALOG') advanceDialog(); 
+                else if (gameState.state === 'PLAY') interact(); 
+                // [수정됨] 모바일 버튼에서는 LINEUP 처리 로직 제거 (직접 터치 방식 사용)
+                // else if (gameState.state === 'LINEUP') selectSuspect(); 
+                setTimeout(() => actionBtn.classList.remove('pressed'), 100);
+            };
+            actionBtn.addEventListener('mousedown', actionHandler); actionBtn.addEventListener('touchstart', actionHandler, {passive: false});
+        }
+    }
+
+    window.onload = function() {
+        setupMobileControls();
+        
+        // [추가됨] 범인 지목 단계에서 클릭/터치 이벤트 리스너 추가
+        canvas.addEventListener('mousedown', handleLineupInput);
+        canvas.addEventListener('touchstart', handleLineupInput, {passive: false});
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (gameState.state === 'DIALOG' && e.code === 'Space') advanceDialog();
+            else if (gameState.state === 'PLAY' && e.code === 'Space') interact();
+            // [수정됨] 키보드로 범인 선택 불가 (제거)
+            // else if (gameState.state === 'LINEUP' && e.code === 'Space') selectSuspect(); 
+        });
+        window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        requestAnimationFrame(gameLoop);
+    };
+
+    // [추가됨] 범인 지목 단계 클릭/터치 처리 함수
+    function handleLineupInput(e) {
+        if (gameState.state !== 'LINEUP') return;
+        e.preventDefault(); // 터치 시 마우스 이벤트 중복 발생 방지
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        let clientX, clientY;
+        if (e.type === 'touchstart') {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        // 캔버스 내부 좌표 계산
+        const x = (clientX - rect.left) * scaleX;
+        const y = (clientY - rect.top) * scaleY;
+
+        // 모든 용의자에 대해 클릭/터치 위치 확인
+        for (let i = 0; i < gameState.suspects.length; i++) {
+            const pos = getSuspectCoords(i);
+            // 캐릭터 크기: 기본 40 * 스케일 3 = 120px
+            // 클릭 히트박스 영역 검사
+            if (x >= pos.x && x <= pos.x + 120 && y >= pos.y && y <= pos.y + 120) {
+                // [수정됨] 바로 검거하지 않고 확인 팝업 띄움
+                openArrestConfirm(i);
+                break;
+            }
+        }
+    }
+
+    // [추가됨] 검거 확인 팝업 열기
+    function openArrestConfirm(index) {
+        gameState.pendingSuspectIdx = index;
+        const overlay = document.getElementById('arrest-confirm-overlay');
+        overlay.style.display = 'flex';
+
+        // 팝업 내 캔버스에 선택된 용의자 그리기
+        const pCanvas = document.getElementById('previewCanvas');
+        const pCtx = pCanvas.getContext('2d');
+        pCtx.imageSmoothingEnabled = false;
+        pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+        
+        // 배경을 어둡게 처리하여 캐릭터 부각
+        pCtx.fillStyle = '#222';
+        pCtx.fillRect(0, 0, pCanvas.width, pCanvas.height);
+
+        pCtx.save();
+        pCtx.scale(3, 3); // 3배 확대
+        // 캔버스 중앙에 배치 (Canvas 120x180 / 3 = 40x60 공간)
+        // 캐릭터는 40x40 타일 기준이므로 (0, 10) 정도에 그리면 적당
+        drawCharacter(pCtx, 0, 10, 'suspect', 0, 0, gameState.suspects[index]);
+        pCtx.restore();
+    }
+
+    // [추가됨] 검거 확정
+    function confirmArrest() {
+        document.getElementById('arrest-confirm-overlay').style.display = 'none';
+        if (gameState.pendingSuspectIdx !== -1) {
+            selectSuspect(gameState.pendingSuspectIdx);
+            gameState.pendingSuspectIdx = -1;
+        }
+    }
+
+    // [추가됨] 검거 취소
+    function cancelArrest() {
+        document.getElementById('arrest-confirm-overlay').style.display = 'none';
+        gameState.pendingSuspectIdx = -1;
+    }
+
+    function gameLoop() {
+        if (!gameState.isPaused) { 
+            if (gameState.state !== 'LINEUP') { handleInput(); updatePhysics(); } 
+            else { handleInput(); }
+            gameState.frameCount++;
+        }
+        draw(); 
+        requestAnimationFrame(gameLoop);
+    }
+
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,SCREEN_W, SCREEN_H);
+</script>
+</body>
+</html>
