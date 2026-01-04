@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Escape: 반드시 연쇄 도난사건</title>
     <style>
         /* [수정됨] Press Start 2P는 구글 폰트에서, DungGeunMo는 눈누(cdn)에서 로드 */
@@ -34,7 +34,9 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            /* [수정됨] 모바일 브라우저 주소창 등을 고려한 동적 높이(dvh) 사용 */
             height: 100vh;
+            height: 100dvh; 
             width: 100vw;
             font-family: var(--font-main);
             overflow: hidden;
@@ -548,6 +550,8 @@
         transition: { active: false, alpha: 0, mode: 'IN', callback: null },
         loopStarted: false,
         cursorIdx: 0,
+        // [수정됨] inputLock 초기화 추가
+        inputLock: false,
         pendingSuspectIdx: -1 
     };
 
@@ -571,17 +575,37 @@
     const SCREEN_W = 800;
     const SCREEN_H = 600;
 
+    // [수정됨] 반응형 리사이즈 함수 개선
     function resize() {
         const container = document.getElementById('game-container');
-        const aspect = SCREEN_W / SCREEN_H; 
-        const windowAspect = window.innerWidth / window.innerHeight;
+        const targetRatio = SCREEN_W / SCREEN_H; 
+        const windowRatio = window.innerWidth / window.innerHeight;
+        
         let scale;
-        if (windowAspect < aspect) scale = window.innerWidth / SCREEN_W;
-        else scale = window.innerHeight / SCREEN_H;
-        scale *= 0.95;
+        
+        // 창 비율에 따라 기준 축 설정 (fit width vs fit height)
+        if (windowRatio < targetRatio) {
+            scale = window.innerWidth / SCREEN_W;
+        } else {
+            scale = window.innerHeight / SCREEN_H;
+        }
+        
+        // 5%의 안전 여백을 두어 '설정 바' 등 외부 UI와 겹치지 않게 함
+        scale *= 0.95; 
+        
         container.style.transform = `scale(${scale})`;
     }
-    window.addEventListener('resize', resize);
+    
+    // [수정됨] Resize Debounce (성능 최적화)
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(resize, 100);
+    });
+    window.addEventListener('orientationchange', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(resize, 100);
+    });
     resize();
 
     /* =========================================
@@ -635,6 +659,9 @@
 
     function setMobileControls(visible) {
         const el = document.getElementById('mobile-controls');
+        // [수정됨] Null check
+        if (!el) return;
+        
         if (gameState.inputMode === 'MOBILE' && visible && gameState.state !== 'LINEUP') {
             el.classList.remove('hidden');
         } else {
@@ -788,8 +815,9 @@
         closeBtn.innerText = "뒤로";
         closeBtn.classList.remove('hidden');
 
+        // [수정됨] 기존 타이머 해제 후 재설정
+        clearInterval(quizTimer); 
         quizTimeLeft = 10; updateQuizTimerBar();
-        clearInterval(quizTimer);
         quizTimer = setInterval(() => {
             if (!gameState.isPaused) { 
                 quizTimeLeft -= 0.1; updateQuizTimerBar();
@@ -946,6 +974,8 @@
         let map = [];
         let validMap = false;
         let attemptCount = 0;
+        
+        // [수정됨] 맵 생성 안전장치: 최대 100번 시도 후 실패 시 기본 맵 제공
         while (!validMap && attemptCount < 100) {
             attemptCount++;
             map = []; 
@@ -1007,13 +1037,37 @@
             }
             if (stageNum === 5) validMap = checkReachability(map, startX, startY); else validMap = true;
         }
+
+        // [수정됨] 맵 생성 실패 시 기본 맵 생성 (Fallback)
+        if (!validMap) {
+            console.warn("Map generation failed, using fallback map.");
+            map = [];
+            for (let y = 0; y < h; y++) {
+                let row = [];
+                for (let x = 0; x < w; x++) {
+                    if (y === 0 || y === h - 1 || x === 0 || x === w - 1) row.push('1'); else row.push('0');
+                }
+                map.push(row);
+            }
+            let doorX = Math.floor(w/2); map[1][doorX] = '2';
+            let startX = Math.floor(w/2); let startY = h - 2; map[startY][startX] = '4';
+            
+            // 퍼즐 강제 배치
+            let fallbackPuzzles = 0;
+            for(let y=2; y<h-2; y+=3) {
+                if(fallbackPuzzles < 4) { map[y][2] = '3'; fallbackPuzzles++; }
+            }
+        }
+
         return map;
     }
 
     function loadStage(stageNum) {
         gameState.stage = stageNum;
         let currentConfig = STAGE_CONFIG[stageNum];
-        if (!currentConfig) return;
+        // [수정됨] 방어 코드
+        if (!currentConfig) return; 
+        
         document.getElementById('stage-info').innerText = currentConfig.name;
         gameState.hintsLeft = 5; updateHintBtn();
 
@@ -1124,8 +1178,10 @@
         showDialog(["모든 단서를 모았습니다.", "용의자 10명이 확보되었습니다.", "지금까지 모은 단서를 바탕으로 진범을 지목하십시오.", "범인이라 생각되는 사람을 직접 선택(클릭/터치)하여 체포하세요."], () => { });
     }
 
-    // [수정됨] selectSuspect가 인덱스를 직접 받도록 수정
+    // [수정됨] selectSuspect가 인덱스를 직접 받도록 수정 및 방어 코드
     function selectSuspect(index) {
+        if (!gameState.suspects || !gameState.suspects[index]) return; // 안전장치
+        
         let selected = gameState.suspects[index];
         if (selected.isCulprit) { showEnding(); } else { gameOver("엉뚱한 사람을 체포했다. 진범은 도주했다."); }
     }
@@ -1346,6 +1402,9 @@
     }
 
     function draw() {
+        // [수정됨] Null check
+        if (!ctx) return;
+
         // START 상태에서도 그리기 허용
         // if(gameState.state === 'START' || gameState.state === 'END') return;
         if(gameState.state === 'END') return; // END 화면은 HTML 오버레이 사용
@@ -1631,6 +1690,9 @@
         const y = (clientY - rect.top) * scaleY;
 
         // 모든 용의자에 대해 클릭/터치 위치 확인
+        // [수정됨] gameState.suspects가 없을 경우 방어
+        if (!gameState.suspects) return;
+
         for (let i = 0; i < gameState.suspects.length; i++) {
             const pos = getSuspectCoords(i);
             // 캐릭터 크기: 기본 40 * 스케일 3 = 120px
